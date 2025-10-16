@@ -1,5 +1,5 @@
 import argparse
-
+import numpy as np
 import pandas as pd
 
 #-------------------------------------------------------------------------------
@@ -73,15 +73,32 @@ def confidence_stats(df):
         result[f'mean_confidence_correct_{outcome}'] = subset['confidence'].mean()
     return result
 
+def hierarchical_metric(df, rewards=None, penalties=None):
+    if rewards is None:
+        # rewards = lambda level: (3-level)/6
+        rewards = pd.Series([1/2 - x/6 for x in range(3)]) # [1/2, 1/3, 1/6]
+    if penalties is None:
+        # penalties = lambda level: (-1-level)/6)
+        penalties = pd.Series([-(1+x)/6 for x in range(3)]) # [-1/6, -1/3, -!/2]
+    m = np.where(
+    df['confidence']>df['threshold'], 
+    np.where(
+        df['label']==df['prediction'],
+        rewards[df['level']], 
+        penalties[df['level']]),
+    0)
+    return sum(m)/df['instance_id'].nunique()
+
 # Run all metrics in one call
-def evaluate_all_metrics(summary):
+def evaluate_all_metrics(df):
     return {
-        'micro_accuracy': micro_accuracy(summary),
-        'coverage': coverage(summary),
-        'coverage_per_level' : coverage_per_level(summary),
-        'average_prediction_level': average_prediction_level(summary),
-        'correct_at_each_level': correct_at_each_level(summary),
-        **confidence_stats(summary)
+        'micro_accuracy': micro_accuracy(df),
+        'coverage': coverage(df),
+        'coverage_per_level' : coverage_per_level(df),
+        'average_prediction_level': average_prediction_level(df),
+        'correct_at_each_level': correct_at_each_level(df),
+        **confidence_stats(df),
+        "hierarchical_metric":hierarchical_metric(df),
     }
 
 def main(csv="mini_results.csv"):
