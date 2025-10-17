@@ -8,6 +8,7 @@ import pandas as pd
 from sklearn.metrics import confusion_matrix
 
 from mini_metrics.data import MetricDF
+from mini_metrics import pretty_string_dict
 
 
 # Accuracy
@@ -116,7 +117,7 @@ def main(csv : str | None=None):
     if csv is None:
         csv = os.path.join(os.path.dirname(__file__), "mini_results.csv")
     df = MetricDF(pd.read_csv(csv))
-    print(evaluate_all_metrics(df))
+    print(pretty_string_dict(evaluate_all_metrics(df)))
 
 def cli():
     parser = argparse.ArgumentParser()
