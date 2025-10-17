@@ -59,7 +59,7 @@ def accuracy_score(y_true, y_pred, balanced=True, adjusted=False):
         score = np.diag(C).sum() / C.sum()
     return float(score)
 
-def macro_accurcy(df):
+def macro_accuracy(df):
     """Macro accuracy per level.
     """
     ma = []
