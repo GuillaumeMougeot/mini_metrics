@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mini_metrics"
+version = "0.0.1"
+dependencies = [
+  "numpy",
+  "pandas",
+  "matplotlib"
+]
+requires-python = ">=3.12"
+authors = [
+  {name = "Guillaume Mougeot", email = "guillaume.mougeot@laposte.net"},
+  {name = "Asger Svenning", email = "asgersvenning@gmail.com"}
+]
+maintainers = [
+  {name = "Guillaume Mougeot", email = "guillaume.mougeot@laposte.net"},
+  {name = "Asger Svenning", email = "asgersvenning@gmail.com"}
+]
+description = "A minimal package for computing classification evaluation metrics"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["machine learning", "metrics", "evaluation", "classification"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python"
+]
+
+[project.urls]
+Repository = "https://github.com/GuillaumeMougeot/mini_metrics"
+"Bug Tracker" = "https://github.com/GuillaumeMougeot/mini_metrics/issues"
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+# Enable core checks, imports, pyupgrade, and pydocstyle
+select = ["E", "F", "I", "UP", "D"]
+# Prefer multi-line docstring summaries (D213); ignore D200 (summary must be on first line)
+ignore = ["D200"]
+preview = true
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.docformatter]
+# Place opening quotes on their own line and summary on the next line
+make-summary-multi-line = true
+pre-summary-newline = true
+# Leave lines unwrapped; let editors/linters handle wrapping
+wrap-summaries = 0
+wrap-descriptions = 0
