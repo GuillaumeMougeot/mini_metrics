@@ -1,6 +1,7 @@
 import argparse
 import numpy as np
 import pandas as pd
+from sklearn.metrics import confusion_matrix
 
 #-------------------------------------------------------------------------------
 
@@ -37,8 +38,26 @@ def micro_accuracy(df):
     return df['correct'].mean()
 
 # Macro accuracy at each level
-def macro_accuracy(df):
-    return df['']
+def accuracy_score(y_true, y_pred, balanced=True, adjusted=False):
+    """Implementation based on https://scikit-learn.org/stable/modules/generated/sklearn.metrics.balanced_accuracy_score.html
+    """
+    C = confusion_matrix(y_true, y_pred)
+    if balanced:
+        with np.errstate(divide="ignore", invalid="ignore"):
+            per_class = np.diag(C) / C.sum(axis=1)
+        if np.any(np.isnan(per_class)):
+            # warnings.warn("y_pred contains classes not in y_true")
+            per_class = per_class[~np.isnan(per_class)]
+        score = np.mean(per_class)
+        if adjusted:
+            n_classes = len(per_class)
+            if n_classes > 1: # bug fix if only one y_true class has been detected
+                chance = 1 / n_classes
+                score -= chance
+                score /= 1 - chance
+    else:
+        score = np.diag(C).sum() / C.sum()
+    return float(score)
 
 # Coverage
 def coverage(df):
@@ -74,12 +93,14 @@ def confidence_stats(df):
     return result
 
 def hierarchical_metric(df, rewards=None, penalties=None):
+    """Global hierarchical metric.
+    """
     if rewards is None:
         # rewards = lambda level: (3-level)/6
         rewards = pd.Series([1/2 - x/6 for x in range(3)]) # [1/2, 1/3, 1/6]
     if penalties is None:
         # penalties = lambda level: (-1-level)/6)
-        penalties = pd.Series([-(1+x)/6 for x in range(3)]) # [-1/6, -1/3, -!/2]
+        penalties = pd.Series([-(1+x)/6 for x in range(3)]) # [-1/6, -1/3, -1/2]
     m = np.where(
     df['confidence']>df['threshold'], 
     np.where(
