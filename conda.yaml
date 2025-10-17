@@ -1,0 +1,7 @@
+name: mini_metrics
+channels:
+  - conda-forge
+dependencies:
+  - python >=3.11,<3.13
+  - pandas
+  - matplotlib
