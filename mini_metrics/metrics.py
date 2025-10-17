@@ -59,6 +59,14 @@ def accuracy_score(y_true, y_pred, balanced=True, adjusted=False):
         score = np.diag(C).sum() / C.sum()
     return float(score)
 
+def macro_accurcy(df):
+    """Macro accuracy per level.
+    """
+    ma = []
+    for level, group in df.groupby('level'):
+        ma.append(accuracy_score(group['label'],group['prediction']))
+    return ma
+
 # Coverage
 def coverage(df):
     """Proportion of instances where the model made any prediction
