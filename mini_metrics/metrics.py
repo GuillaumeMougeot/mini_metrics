@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 
 import numpy as np
 import pandas as pd
@@ -111,13 +112,15 @@ def evaluate_all_metrics(df : pd.DataFrame):
         "hierarchical_metric" : hierarchical_metric(df),
     }
 
-def main(csv : str="mini_results.csv"):
+def main(csv : str | None=None):
+    if csv is None:
+        csv = os.path.join(os.path.dirname(__file__), "mini_results.csv")
     df = MetricDF(pd.read_csv(csv))
     print(evaluate_all_metrics(df))
 
 def cli():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--file", default="mini_results.csv", help="Path to the result files.")
+    parser.add_argument("-f", "--file", help="Path to the result files.")
     args = parser.parse_args()
     main(args.file)
 
