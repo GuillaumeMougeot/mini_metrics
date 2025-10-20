@@ -37,6 +37,9 @@ class MetricDF(pd.DataFrame):
         self.validate(coerce=coerce)
         self.compute_prediction_level()
 
+    def invalid_schema(msg : str):
+        raise RuntimeError(f'Invalid data schema:\n{msg}')
+
     def validate(self, coerce : bool=False):
         for i, (col, tp) in enumerate(self._schema):
             if self.columns[i] != col:
