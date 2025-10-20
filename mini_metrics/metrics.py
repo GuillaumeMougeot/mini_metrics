@@ -18,7 +18,10 @@ def shannon_entropy(X : np.ndarray, skip0 : bool=True):
 
 # Accuracy
 def micro_accuracy(df : MetricDF):
-    return float(df.correct.mean())
+    return {
+        level : float((tdf.label == tdf.prediction).mean()) 
+        for level in sorted(set(df.level)) if (tdf := df[df.level == level]) is not None
+    }
 
 # Macro accuracy at each level
 def accuracy_score(df : MetricDF, balanced=True, adjusted=False):
@@ -44,21 +47,31 @@ def accuracy_score(df : MetricDF, balanced=True, adjusted=False):
 
 # Theil's U / Uncertainty coefficient
 def theilU(df : MetricDF):
-    C = confusion_matrix(df.label, df.prediction).astype(float)
-    N, CS, RS = [C.sum(a) for a in [None, 0, 1]] 
-    if N <= 1:
-        return float('nan')
-    eN = shannon_entropy(RS)
-    if eN == 0.0:
-        return float('nan')
-    return 1 - float((CS * np.fromiter(map(shannon_entropy, C.T)), float).sum() / (N * eN))
+    retval = dict()
+    for level in sorted(set(df.level)):
+        C = confusion_matrix(df[df.level == level].label, df[df.level == level].prediction).astype(float)
+        N, CS, RS = [C.sum(a) for a in [None, 0, 1]] 
+        if N <= 1:
+            retval[level] = float('nan'); continue
+        eN = np.clip(shannon_entropy(RS), 0.0, np.inf)
+        if eN <= 0.0:
+            retval[level] = float('nan'); continue
+        eCS = np.fromiter(map(shannon_entropy, C.T), float)
+        H_XY = (CS * eCS).sum() / N
+        U = 1 - float(H_XY / eN)
+        retval[level] = U
+    return retval
 
 def macro_accuracy(df : MetricDF):
     """Macro accuracy per level.
     """
-    ma = []
-    for level, group in df.groupby('level'):
-        ma.append(accuracy_score(group['label'],group['prediction']))
+    ma = dict()
+    for level in sorted(set(df.level)):
+        mi = []
+        for group in sorted(set(df[df.level == level].label)):
+            tdf = df[np.logical_and(df.label == group, df.level == level)]
+            mi.append(float((tdf.label == tdf.prediction).mean()))
+        ma[level] = sum(mi) / len(mi)
     return ma
 
 # Coverage
@@ -93,7 +106,7 @@ def no_prediction_rate(df : MetricDF):
 # Mean Confidence of Correct vs Incorrect Predictions
 def confidence_stats(df : MetricDF):
     return {
-        f'confidence_when_{outcome}' : float(df.confidence[df.correct == outcome].mean()) 
+        f'confidence_when_{outcome}' : float(df[df.correct == outcome].confidence.mean()) 
         for outcome in [0, 1]
     }
 
@@ -121,6 +134,8 @@ def hierarchical_metric(
 def evaluate_all_metrics(df : pd.DataFrame):
     return {
         'micro_accuracy': micro_accuracy(df),
+        'macro_accuracy': macro_accuracy(df),
+        "theilU" : theilU(df),
         'coverage': coverage(df),
         'coverage_per_level' : coverage_per_level(df),
         'average_prediction_level': average_prediction_level(df),
