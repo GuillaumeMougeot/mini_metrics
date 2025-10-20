@@ -10,16 +10,21 @@ from sklearn.metrics import confusion_matrix
 from mini_metrics.data import MetricDF
 from mini_metrics import pretty_string_dict
 
+def shannon_entropy(X : np.ndarray, skip0 : bool=True):
+    if skip0:
+        X = X[X > 0]
+    X = X / X.sum()
+    return float(-(X * np.log(X)).sum())
 
 # Accuracy
 def micro_accuracy(df : MetricDF):
     return float(df.correct.mean())
 
 # Macro accuracy at each level
-def accuracy_score(y_true, y_pred, balanced=True, adjusted=False):
+def accuracy_score(df : MetricDF, balanced=True, adjusted=False):
     """Implementation based on https://scikit-learn.org/stable/modules/generated/sklearn.metrics.balanced_accuracy_score.html
     """
-    C = confusion_matrix(y_true, y_pred)
+    C = confusion_matrix(df.label, df.prediction)
     if balanced:
         with np.errstate(divide="ignore", invalid="ignore"):
             per_class = np.diag(C) / C.sum(axis=1)
@@ -36,6 +41,17 @@ def accuracy_score(y_true, y_pred, balanced=True, adjusted=False):
     else:
         score = np.diag(C).sum() / C.sum()
     return float(score)
+
+# Theil's U / Uncertainty coefficient
+def theilU(df : MetricDF):
+    C = confusion_matrix(df.label, df.prediction).astype(float)
+    N, CS, RS = [C.sum(a) for a in [None, 0, 1]] 
+    if N <= 1:
+        return float('nan')
+    eN = shannon_entropy(RS)
+    if eN == 0.0:
+        return float('nan')
+    return 1 - float((CS * np.fromiter(map(shannon_entropy, C.T)), float).sum() / (N * eN))
 
 def macro_accuracy(df : MetricDF):
     """Macro accuracy per level.
