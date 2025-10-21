@@ -147,7 +147,7 @@ def evaluate_all_metrics(df : pd.DataFrame):
 def main(csv : str | None=None):
     if csv is None:
         csv = os.path.join(os.path.dirname(__file__), "mini_results.csv")
-    df = MetricDF(pd.read_csv(csv))
+    df = MetricDF.from_source(csv)
     print(pretty_string_dict(evaluate_all_metrics(df)))
 
 def cli():

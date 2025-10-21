@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import os
+from typing import IO
+from zipfile import ZipFile
+
 import numpy as np
 import pandas as pd
 
@@ -13,9 +17,26 @@ SCHEMA = (
     ("prediction", int),
     ("confidence", float),
     ("threshold", float),
-    # ("prediction_made", int),
-    # ("correct", int)
+    ("prediction_made", int), # Optional
+    ("correct", int) # Optional
 )
+
+class COLUMNS_DEFAULT:
+    @staticmethod
+    def prediction_made(df : MetricDF):
+        return df.confidence > df.threshold
+    
+    @staticmethod
+    def correct(df : MetricDF):
+        return df.prediction == df.label
+    
+    def __contains__(self, other : str):
+        return callable(getattr(self, other, None))
+    
+    def __call__(self, df : MetricDF, what : str) -> pd.Series:
+        if what not in self:
+            raise KeyError(f'"{what}" does not have a default function.')
+        return getattr(self, what)(df)
 
 def first_nonzero_ordered(mask: np.ndarray, arr: np.ndarray):
     if mask.shape != arr.shape:
@@ -33,6 +54,16 @@ def group_arr(arr : np.ndarray):
 
 class MetricDF(pd.DataFrame):
     _schema = SCHEMA
+    _default = COLUMNS_DEFAULT()
+
+    @staticmethod
+    def from_source(src : str | IO[bytes]) -> MetricDF:
+        if isinstance(src, str) and os.path.splitext(src)[1].lower().endswith("zip"):
+            with ZipFile(src) as zp:
+                if len(zp.filelist) != 1:
+                    raise RuntimeError(f'MetricDF zip archive source contains {len(zp.filelist)} files, but should contain exactly 1!')
+                return MetricDF.from_source(zp.open(zp.filelist[0]))
+        return MetricDF(pd.read_csv(src))
 
     @property # keep subclass on pandas ops
     def _constructor(self):
@@ -55,11 +86,15 @@ class MetricDF(pd.DataFrame):
             coerce (bool): If True, attempt to cast columns to the expected dtypes.
             strict (bool): If True, also check that columns are in the correct order.
         """
+        lazy_cols : list[str] = list() 
         for i, (col, tp) in enumerate(self._schema):
             # Check that column exists
             if col not in self.columns:
-                self.invalid_schema(f"Missing column: {col}")
-                continue
+                if col in self._default:
+                    lazy_cols.append(col)
+                    continue
+                else:
+                    self.invalid_schema(f"Missing column: {col}")
 
             # If strict mode, check that it's in the correct position
             if strict:
@@ -78,6 +113,10 @@ class MetricDF(pd.DataFrame):
                     )
                 else:
                     self[col] = self[col].astype(dtype, copy=False)
+        
+        # Compute optional columns if missing
+        for col in lazy_cols:
+            self[col] = self._default(self, col)
 
     def compute_prediction_level(self):
         prediction_level = -np.ones((len(self.index),), dtype=np.long)
@@ -94,7 +133,7 @@ class MetricDF(pd.DataFrame):
             prediction_level[gidx] = first_nonzero_ordered(conf >= thr, lvl)
         self["prediction_level"] = pd.Series(prediction_level)
 
-    def add_prediction_columns(df, drop_temp: bool = False):
+    def add_prediction_columns(self, drop_temp: bool = False):
         """
         Add prediction_made, prediction_level, correct, above_threshold, prediction_at_level, label_at_level.
         Supports variable number of levels per instance_id.
@@ -105,41 +144,35 @@ class MetricDF(pd.DataFrame):
         """
     
         # Identify if confidence > threshold
-        df['above_threshold'] = df['confidence'] > df['threshold']
+        self['above_threshold'] = self.confidence > self.threshold
 
         # Compute prediction_made (any above threshold per instance)
-        prediction_made = df.groupby('instance_id')['above_threshold'].transform('any').astype(int)
-        df['prediction_made'] = prediction_made
+        prediction_made = self.groupby('instance_id')['above_threshold'].transform('any').astype(int)
+        self['prediction_made'] = prediction_made
 
         # Compute lowest level where prediction is made
-        # Use a very large value for levels that don't pass threshold
-        df['prediction_level'] = (
-            df.assign(tmp=np.where(df['above_threshold'], df['level'], np.inf))
-            .groupby('instance_id')['tmp']
-            .transform('min')
-            .replace(np.inf, -1)
-            .astype(int)
-        )
+        self.compute_prediction_level()
 
-        # Extract prediction and label at the prediction level
-        df_at_level = df[['instance_id', 'level', 'prediction', 'label']].copy()
-        df_at_level = df_at_level.rename(columns={
-            'level': 'prediction_level',
-            'prediction': 'prediction_at_level',
-            'label': 'label_at_level'
-        })
+        # Question: What is this supposed to do?
+        # # Extract prediction and label at the prediction level
+        # df_at_level = self[['instance_id', 'level', 'prediction', 'label']].copy()
+        # df_at_level = df_at_level.rename(columns={
+        #     'level': 'prediction_level',
+        #     'prediction': 'prediction_at_level',
+        #     'label': 'label_at_level'
+        # })
 
-        df = df.merge(
-            df_at_level,
-            on=['instance_id', 'prediction_level'],
-            how='left'
-        )
+        # self = self.merge(
+        #     df_at_level,
+        #     on=['instance_id', 'prediction_level'],
+        #     how='left'
+        # )
 
-        # Ensure int type for prediction_at_level and label_at_level
-        df['prediction_at_level'] = df['prediction_at_level'].fillna(-1).astype(int)
-        df['label_at_level'] = df['label_at_level'].fillna(-1).astype(int)
+        # # Ensure int type for prediction_at_level and label_at_level
+        # self['prediction_at_level'] = self['prediction_at_level'].fillna(-1).astype(int)
+        # self['label_at_level'] = self['label_at_level'].fillna(-1).astype(int)
 
         # Compute correct
-        df['correct'] = ((df['prediction_at_level'] == df['label_at_level']) & (df['prediction_level'] != -1)).astype(int)
+        self['correct'] = self.prediction == self.label
 
-        return df
+        return self
