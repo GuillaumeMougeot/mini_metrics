@@ -53,27 +53,38 @@ def group_arr(arr : np.ndarray):
     return [(val, idxs) for val, idxs in zip(np.unique(arr), groups)]
 
 class MetricDF(pd.DataFrame):
+    _metadata = ["_validated"] # keep track of whether we have validated the DF
     _schema = SCHEMA
     _default = COLUMNS_DEFAULT()
 
-    @staticmethod
-    def from_source(src : str | IO[bytes]) -> MetricDF:
+    @classmethod
+    def from_source(cls, src : str | IO[bytes]) -> "MetricDF":
         if isinstance(src, str) and os.path.splitext(src)[1].lower().endswith("zip"):
             with ZipFile(src) as zp:
                 if len(zp.filelist) != 1:
                     raise RuntimeError(f'MetricDF zip archive source contains {len(zp.filelist)} files, but should contain exactly 1!')
-                return MetricDF.from_source(zp.open(zp.filelist[0]))
-        return MetricDF(pd.read_csv(src))
+                return cls.from_source(zp.open(zp.filelist[0]))
+        return cls(pd.read_csv(src))
 
-    @property # keep subclass on pandas ops
+    @property
     def _constructor(self):
-        return MetricDF
+        def _c(*args, **kwargs):
+            kwargs["_validated"] = getattr(self, "_validated", False)
+            return type(self)(*args, **kwargs).__finalize__(self)
+        return _c
 
-    def __init__(self, data=None, *, coerce: bool = True, **kwargs):
+    def __finalize__(self, other=None, method=None):
+        if isinstance(other, MetricDF):
+            self._validated = getattr(other, "_validated", False)
+        return super().__finalize__(other, method=method)
+
+    def __init__(self, data=None, *, coerce: bool = True, _validated : bool=False, **kwargs):
         super().__init__(data, **kwargs)
-        self.validate(coerce=coerce)
-        self.compute_prediction_level()
-        # self.add_prediction_columns()
+        self._validated = _validated
+        if not self._validated:
+            self.validate(coerce=coerce)
+            self.compute_prediction_level()
+            self._validated = True
 
     def invalid_schema(self, msg : str):
         raise RuntimeError(f'Invalid data schema:\n{msg}')

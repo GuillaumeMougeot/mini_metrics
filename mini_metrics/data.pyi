@@ -1,7 +1,11 @@
 # metricdf.pyi
+from typing import IO
+
 import pandas
 
 class MetricDF(pandas.DataFrame):
+    @classmethod
+    def from_source(cls, src : str | IO[bytes]) -> "MetricDF": ...
     @property
     def instance_id(self) -> pandas.Series[int]: ...
     @property

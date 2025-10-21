@@ -13,13 +13,18 @@ from mini_metrics import pretty_string_dict
 def shannon_entropy(X : np.ndarray, skip0 : bool=True):
     if skip0:
         X = X[X > 0]
+    if len(X) == 0:
+        return float('nan')
     X = X / X.sum()
     return float(-(X * np.log(X)).sum())
+
+def to_float(x):
+    return float(pd.to_numeric(x))
 
 # Accuracy
 def micro_accuracy(df : MetricDF):
     return {
-        level : float((tdf.label == tdf.prediction).mean()) 
+        level : to_float((tdf.label == tdf.prediction).mean()) 
         for level in sorted(set(df.level)) if (tdf := df[df.level == level]) is not None
     }
 
@@ -70,7 +75,7 @@ def macro_accuracy(df : MetricDF):
         mi = []
         for group in sorted(set(df[df.level == level].label)):
             tdf = df[np.logical_and(df.label == group, df.level == level)]
-            mi.append(float((tdf.label == tdf.prediction).mean()))
+            mi.append(to_float((tdf.label == tdf.prediction).mean()))
         ma[level] = sum(mi) / len(mi)
     return ma
 
@@ -79,25 +84,25 @@ def coverage(df : MetricDF):
     """Proportion of instances where the model made any prediction
       (i.e., had confidence ≥ threshold at some level).
     """
-    return float(df.prediction_made.mean())
+    return to_float(df.prediction_made.mean())
 
 # Coverage per level
 def coverage_per_level(df : MetricDF):
     return {
-        int(level) : float(df.prediction_made[df.level == level].mean())
+        int(level) : to_float(df.prediction_made[df.level == level].mean())
         for level in sorted(set(df.level))
     }
 
 # Correct @ Level
 def correct_at_each_level(df : MetricDF):
     return {
-        int(level) : float(df.correct[df.level == level].mean()) 
+        int(level) : to_float(df.correct[df.level == level].mean()) 
         for level in sorted(set(df.level))
     }
 
 # Average Prediction Level
 def average_prediction_level(df : MetricDF):
-    return float(df.prediction_level.mean())
+    return to_float(df.prediction_level.mean())
 
 # No Prediction Rate
 def no_prediction_rate(df : MetricDF):
@@ -106,7 +111,7 @@ def no_prediction_rate(df : MetricDF):
 # Mean Confidence of Correct vs Incorrect Predictions
 def confidence_stats(df : MetricDF):
     return {
-        f'confidence_when_{outcome}' : float(df[df.correct == outcome].confidence.mean()) 
+        f'confidence_when_{outcome}' : to_float(df[df.correct == outcome].confidence.mean())
         for outcome in [0, 1]
     }
 
@@ -128,7 +133,7 @@ def hierarchical_metric(
             penalties[df.level]
         )
     )
-    return float(m.sum() / df.instance_id.nunique())
+    return to_float(m.sum() / df.instance_id.nunique())
 
 # Run all metrics in one call
 def evaluate_all_metrics(df : pd.DataFrame):
