@@ -144,7 +144,7 @@ class MetricDF(pd.DataFrame):
             prediction_level[gidx] = first_nonzero_ordered(conf >= thr, lvl)
         self["prediction_level"] = pd.Series(prediction_level)
 
-    def add_prediction_columns(self, drop_temp: bool = False):
+    def add_prediction_columns(self, drop_temp: bool = True):
         """
         Add prediction_made, prediction_level, correct, above_threshold, prediction_at_level, label_at_level.
         Supports variable number of levels per instance_id.
@@ -185,5 +185,9 @@ class MetricDF(pd.DataFrame):
 
         # Compute correct
         self['correct'] = self.prediction == self.label
+
+        # If drop_metric
+        if drop_temp:
+            self = self.drop(columns=['above_threshold', 'prediction_at_level', 'label_at_level'])
 
         return self
