@@ -62,7 +62,7 @@ def theilU(df : MetricDF):
         if eN <= 0.0:
             retval[level] = float('nan'); continue
         eCS = np.fromiter(map(shannon_entropy, C.T), float)
-        H_XY = (CS * eCS).sum() / N
+        H_XY = (CS * eCS)[CS > 0].sum() / N
         U = 1 - float(H_XY / eN)
         retval[level] = U
     return retval
