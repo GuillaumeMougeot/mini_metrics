@@ -24,11 +24,11 @@ SCHEMA = (
 class COLUMNS_DEFAULT:
     @staticmethod
     def prediction_made(df : MetricDF):
-        return df.confidence > df.threshold
+        return df.confidence >= df.threshold
     
     @staticmethod
     def correct(df : MetricDF):
-        return df.prediction == df.label
+        return (df.confidence >= df.threshold) * ((df.prediction == df.label) * 2  - 1)
     
     def __contains__(self, other : str):
         return callable(getattr(self, other, None))
