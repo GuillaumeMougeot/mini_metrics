@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.metrics import confusion_matrix
 
 from mini_metrics.data import MetricDF
-from mini_metrics import pretty_string_dict
+from mini_metrics import pretty_string_dict, format_table
 
 # Helpers
 def to_float(x):
@@ -25,7 +25,7 @@ def computer_per_level(func):
         if len(levels) < 2:
             return func(df, *args, **kwargs)
         return {
-            f'level {int(level)}' : func(df[df.level == level], *args, **kwargs)
+            int(level) : func(df[df.level == level], *args, **kwargs)
             for level in levels
         }
     return wrapper
@@ -187,18 +187,42 @@ def evaluate_all_metrics(df : pd.DataFrame):
         "hierarchical_metric" : hierarchical_metric(df),
     }
 
-def main(csv : str | None=None):
-    if csv is None:
-        csv = os.path.join(os.path.dirname(__file__), "demo.csv")
-    df = MetricDF.from_source(csv)
+SIMPLE_METRICS = (
+    "micro_accuracy",
+    "macro_accuracy",
+    "theilU",
+    "coverage",
+    "optimal_confidence_threshold"
+)
+
+def main(file : str | None=None, optimal : bool=False, all : bool=False):
+    if file is None:
+        file = os.path.join(os.path.dirname(__file__), "demo.csv")
+    df = MetricDF.from_source(file)
+    if optimal:
+        threshold = optimal_confidence_threshold(df)
+        if isinstance(threshold, float):
+            df.threshold[:] = threshold
+        else:
+            for level, t in threshold.items():
+                df.loc[df.level == level, "threshold"] = t
+        df.prediction_made = df._default(df, "prediction_made")
+        df.correct = df._default(df, "correct")
+        df.compute_prediction_level()
     metrics = evaluate_all_metrics(df)
-    print(pretty_string_dict(metrics))
+    if all:
+        print(pretty_string_dict(metrics))
+        print()
+    print("METRIC TABLE")
+    print(format_table(metrics, keys=SIMPLE_METRICS))
 
 def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file", help="Path to the result files.")
+    parser.add_argument("-o", "--optimal", action="store_true", help="Use dynamically calculated optimal confidence threshold for metrics.")
+    parser.add_argument('-a', '--all', action="store_true", help="Print full metric results, otherwise only the metric table (default).")
     args = parser.parse_args()
-    main(args.file)
+    main(**vars(args))
 
 if __name__=='__main__':
     cli()
