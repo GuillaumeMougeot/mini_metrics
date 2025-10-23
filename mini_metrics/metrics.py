@@ -268,7 +268,9 @@ def main(
     df = MetricDF.from_source(file)
     refresh_df = False
     if optimal:
-        threshold = [v for k, v in sorted(optimal_confidence_threshold(df).items(), key=lambda x : x[0])]
+        threshold = optimal_confidence_threshold(df)
+        if isinstance(threshold, dict):
+            threshold = [v for k, v in sorted(threshold.items(), key=lambda x : x[0])]
     if threshold is not None:
         lvls = sorted(set(df.level))
         if isinstance(threshold, list) and len(threshold) == 1:
