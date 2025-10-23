@@ -18,7 +18,10 @@ def pretty_string_dict(d : dict, indent : int=0, digits : int=3, concatenate : b
     return parts
 
 def format_table(d : dict, keys : list[str] | tuple[str, ...], digits : int=2):
-    ds : dict[str, dict[int, float]] = {k : v for k, v in d.items() if k in keys}
+    if isinstance(list(d.values())[0], (float, int)):
+        ds : dict[str, dict[int, float]] = {k : {0 : float(v)} for k, v in d.items() if k in keys}
+    else:
+        ds : dict[str, dict[int, float]] = {k : v for k, v in d.items() if k in keys}
     rows = set([tuple(id.keys()) for id in ds.values()])
     if len(rows) != 1:
         raise RuntimeError(f'Inner dictionaries contain different keys: {rows}')
@@ -32,5 +35,7 @@ def format_table(d : dict, keys : list[str] | tuple[str, ...], digits : int=2):
     lines = [fmt_row.format(*line) for line in lines]
     divider = "-|-".join(["-" * cw for cw in col_widths])
     lines.insert(1, divider)
+    if len(rows) == 1:
+        lines = [line[(col_widths[0] + 2):] for line in lines]
     return "\n".join(lines)
 
