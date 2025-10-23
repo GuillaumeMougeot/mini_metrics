@@ -29,7 +29,7 @@ def format_table(d : dict, keys : list[str] | tuple[str, ...], digits : int=2):
     cols = list(ds.keys())
     lines = [[""] + cols]
     for row in rows:
-        lines.append([f'level {row}'] + [f'{ds[col][row]:.{digits}f}' for col in cols])
+        lines.append([f'level {row}'] + [f'{ds[col][row]:.{digits}%}' for col in cols])
     col_widths = [max([len(line[c]) + 2 for line in lines]) for c in range(len(cols)+1)]
     fmt_row = f'{{:>{col_widths[0]}}} | ' + " | ".join([f'{{:^{cw}}}' for cw in col_widths[1:]])
     lines = [fmt_row.format(*line) for line in lines]

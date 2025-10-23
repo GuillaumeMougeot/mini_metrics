@@ -7,7 +7,7 @@ from zipfile import ZipFile
 import numpy as np
 import pandas as pd
 
-_pd_nullable = {int: "Int64", float: "Float64", str: "string"}
+_pd_nullable = {int: "int64", float: "float64", str: "string", bool : "bool"}
 
 SCHEMA = (
     ("instance_id", int),
@@ -17,11 +17,33 @@ SCHEMA = (
     ("prediction", int),
     ("confidence", float),
     ("threshold", float),
-    ("prediction_made", int), # Optional
+    ("known_label", bool), # Optional
+    ("prediction_level", int), # Optional
+    ("prediction_made", bool), # Optional
     ("correct", int) # Optional
 )
 
 class COLUMNS_DEFAULT:
+    @staticmethod
+    def prediction_level(df : MetricDF):
+        prediction_level = -np.ones((len(df.index),), dtype=np.long)
+        instance_id = df.instance_id.to_numpy()
+        confidence = df.confidence.to_numpy()
+        threshold = df.threshold.to_numpy()
+        level = df.level.to_numpy()
+        for gid, gidx in group_arr(instance_id):
+            conf, thr, lvl = (
+                confidence[gidx], 
+                threshold[gidx], 
+                level[gidx]
+            )
+            prediction_level[gidx] = first_nonzero_ordered(conf >= thr, lvl)
+        return pd.Series(prediction_level)
+
+    @staticmethod
+    def known_label(df : MetricDF):
+        return pd.Series(True, index=df.index)
+
     @staticmethod
     def prediction_made(df : MetricDF):
         return df.confidence >= df.threshold
@@ -37,6 +59,8 @@ class COLUMNS_DEFAULT:
         if what not in self:
             raise KeyError(f'"{what}" does not have a default function.')
         return getattr(self, what)(df)
+
+OPTIONAL_COLUMNS = tuple([col for col, _ in SCHEMA if col in COLUMNS_DEFAULT()])
 
 def first_nonzero_ordered(mask: np.ndarray, arr: np.ndarray):
     if mask.shape != arr.shape:
@@ -78,13 +102,13 @@ class MetricDF(pd.DataFrame):
             self._validated = getattr(other, "_validated", False)
         return super().__finalize__(other, method=method)
 
-    def __init__(self, data=None, *, coerce: bool = True, _validated : bool=False, **kwargs):
+    def __init__(self, data=None, *, coerce: bool = True, strict : bool=True, _validated : bool=False, **kwargs):
         super().__init__(data, **kwargs)
         self._validated = _validated
         if not self._validated:
-            self.validate(coerce=coerce)
-            self.compute_prediction_level()
+            self.validate(coerce=coerce, strict=strict)
             self._validated = True
+            self.__init__(self.reindex(columns=[col for col, _ in self._schema]), _validated=True)
 
     def invalid_schema(self, msg : str):
         raise RuntimeError(f'Invalid data schema:\n{msg}')
@@ -97,8 +121,9 @@ class MetricDF(pd.DataFrame):
             coerce (bool): If True, attempt to cast columns to the expected dtypes.
             strict (bool): If True, also check that columns are in the correct order.
         """
-        lazy_cols : list[str] = list() 
-        for i, (col, tp) in enumerate(self._schema):
+        lazy_cols : list[str] = list()
+        expected_loc = 0
+        for col, tp in self._schema:
             # Check that column exists
             if col not in self.columns:
                 if col in self._default:
@@ -110,9 +135,9 @@ class MetricDF(pd.DataFrame):
             # If strict mode, check that it's in the correct position
             if strict:
                 actual_pos = self.columns.get_loc(col)
-                if actual_pos != i:
+                if actual_pos != expected_loc:
                     self.invalid_schema(
-                        f"Found column: {col} in the wrong location {actual_pos}, expected {i}"
+                        f"Found column: {col} in the wrong location {actual_pos}, expected {expected_loc}"
                     )
 
             # Check dtype
@@ -124,25 +149,13 @@ class MetricDF(pd.DataFrame):
                     )
                 else:
                     self[col] = self[col].astype(dtype, copy=False)
+            
+            # Iterate here to allow 
+            expected_loc += 1
         
         # Compute optional columns if missing
         for col in lazy_cols:
             self[col] = self._default(self, col)
-
-    def compute_prediction_level(self):
-        prediction_level = -np.ones((len(self.index),), dtype=np.long)
-        instance_id = self.instance_id.to_numpy()
-        confidence = self.confidence.to_numpy()
-        threshold = self.threshold.to_numpy()
-        level = self.level.to_numpy()
-        for gid, gidx in group_arr(instance_id):
-            conf, thr, lvl = (
-                confidence[gidx], 
-                threshold[gidx], 
-                level[gidx]
-            )
-            prediction_level[gidx] = first_nonzero_ordered(conf >= thr, lvl)
-        self["prediction_level"] = pd.Series(prediction_level)
 
     def add_prediction_columns(self, drop_temp: bool = True):
         """

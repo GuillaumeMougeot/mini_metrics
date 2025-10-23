@@ -19,7 +19,12 @@ def cast_float(func):
         return to_float(func(*args, **kwargs))
     return wrapper
 
-def computer_per_level(func):
+def filter_known(func):
+    def wrapper(df : MetricDF, *args, **kwargs):
+        return func(df[df.known_label], *args, **kwargs)
+    return wrapper
+
+def compute_per_level(func):
     def wrapper(df : MetricDF, *args, **kwargs):
         levels = sorted(set(df.level))
         if len(levels) < 2:
@@ -29,6 +34,15 @@ def computer_per_level(func):
             for level in levels
         }
     return wrapper
+
+def standard_metric(filter : bool=True):
+    if filter:
+        def decorator(func):
+            return compute_per_level(cast_float(filter_known(func)))
+    else:
+        def decorator(func):
+            return compute_per_level(cast_float(func))
+    return decorator
 
 # Mathematical functions
 def shannon_entropy(X : np.ndarray, skip0 : bool=True):
@@ -64,23 +78,20 @@ def accuracy_score(df : MetricDF, balanced=True, adjusted=False):
     return score
 
 # Accuracy
-@computer_per_level
-@cast_float
+@standard_metric()
 def micro_accuracy(df : MetricDF):
     corr = df.correct[df.correct != 0]
     if len(corr) == 0:
         return 0.0
     return (corr == 1).mean()
 
-@computer_per_level
-@cast_float
+@standard_metric()
 def macro_accuracy(df : MetricDF):
     grps = sorted(set(df.label))
     return sum([micro_accuracy(tdf) for group in grps if len(tdf := df[df.label == group]) > 0]) / len(grps)
 
 # Theil's U / Uncertainty coefficient
-@computer_per_level
-@cast_float
+@standard_metric()
 def theilU(df : MetricDF):
     C = confusion_matrix(df.label, df.prediction).astype(float)
     N, CS, RS = [C.sum(a) for a in [None, 0, 1]] 
@@ -94,18 +105,17 @@ def theilU(df : MetricDF):
     return 1 - H_XY / eN
 
 # Coverage
-@computer_per_level
-@cast_float
+@standard_metric()
 def coverage(df : MetricDF):
     """Proportion of instances where the model made any prediction
       (i.e., had confidence ≥ threshold at some level).
     """
     return df.prediction_made.mean()
 
-# No Prediction Rate
-@computer_per_level
-def no_prediction_rate(df : MetricDF):
-    return 1 - coverage(df)
+# Proportion of known labels
+@standard_metric(filter=False)
+def vocabulary_coverage(df : MetricDF):
+    return df.known_label.mean()
 
 # Average Prediction Level
 @cast_float
@@ -114,7 +124,8 @@ def average_prediction_level(df : MetricDF):
 
 
 # Mean Confidence of Correct vs Incorrect Predictions
-@computer_per_level
+@compute_per_level
+@filter_known
 def confidence_stats(df : MetricDF):
     outcomes = {
         "incorrect" : -1,
@@ -126,8 +137,7 @@ def confidence_stats(df : MetricDF):
         for k, v in outcomes.items()
     }
 
-@computer_per_level
-@cast_float
+@standard_metric()
 def optimal_confidence_threshold(df : MetricDF):
     """
     Computes the confidence threshold using the 
@@ -177,22 +187,24 @@ def hierarchical_metric(
 # Run all metrics in one call
 def evaluate_all_metrics(df : pd.DataFrame):
     return {
-        'micro_accuracy': micro_accuracy(df),
-        'macro_accuracy': macro_accuracy(df),
+        'micro_acc': micro_accuracy(df),
+        'macro_acc': macro_accuracy(df),
         "theilU" : theilU(df),
         'coverage': coverage(df),
-        "optimal_confidence_threshold" : optimal_confidence_threshold(df),
+        'in_vocab' : vocabulary_coverage(df),
+        "optimal_threshold" : optimal_confidence_threshold(df),
         'average_prediction_level': average_prediction_level(df),
         "confidence_when" : confidence_stats(df),
         "hierarchical_metric" : hierarchical_metric(df),
     }
 
 SIMPLE_METRICS = (
-    "micro_accuracy",
-    "macro_accuracy",
+    "micro_acc",
+    "macro_acc",
     "theilU",
     "coverage",
-    "optimal_confidence_threshold"
+    "in_vocab",
+    "optimal_threshold"
 )
 
 def main(file : str | None=None, optimal : bool=False, all : bool=False):
@@ -202,13 +214,13 @@ def main(file : str | None=None, optimal : bool=False, all : bool=False):
     if optimal:
         threshold = optimal_confidence_threshold(df)
         if isinstance(threshold, float):
-            df.threshold[:] = threshold
+            df.loc[df.index, "threshold"] = threshold
         else:
             for level, t in threshold.items():
                 df.loc[df.level == level, "threshold"] = t
         df.prediction_made = df._default(df, "prediction_made")
         df.correct = df._default(df, "correct")
-        df.compute_prediction_level()
+        df = MetricDF(df, strict=False)
     metrics = evaluate_all_metrics(df)
     if all:
         print(pretty_string_dict(metrics))
