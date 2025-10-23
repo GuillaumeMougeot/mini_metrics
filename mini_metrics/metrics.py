@@ -90,6 +90,45 @@ def macro_accuracy(df : MetricDF):
     grps = sorted(set(df.label))
     return sum([micro_accuracy(tdf) for group in grps if len(tdf := df[df.label == group]) > 0]) / len(grps)
 
+@standard_metric()
+def precision(df : MetricDF):
+    grps = sorted(set(df.label))
+    n = len(df)
+    v = []
+    for grp in grps:
+        m = df.label == grp
+        tn = m.sum()
+        if tn == 0:
+            continue
+        tp = df.correct[m].sum()
+        fp = tn - tp
+        # fn = np.logical_and(df.prediction == grp, ~df.correct).sum()
+        v.append(tp/(tp + fp))
+    if len(v) == 0:
+        return float('nan')
+    return sum(v) / len(v)
+
+@standard_metric()
+def recall(df : MetricDF):
+    grps = sorted(set(df.label))
+    n = len(df)
+    v = []
+    for grp in grps:
+        m = df.label == grp
+        tn = m.sum()
+        if tn == 0:
+            continue
+        tp = df.correct[m].sum()
+        fn = np.logical_and(df.prediction == grp, ~df.correct).sum()
+        v.append(tp/(tp + fn))
+    if len(v) == 0:
+        return float('nan')
+    return sum(v) / len(v)
+
+@standard_metric()
+def f1(df : MetricDF):
+    return 2 / (1 / precision(df) + 1 / recall(df))
+
 # Theil's U / Uncertainty coefficient
 @standard_metric()
 def theilU(df : MetricDF):
@@ -187,13 +226,16 @@ def hierarchical_metric(
 # Run all metrics in one call
 def evaluate_all_metrics(df : pd.DataFrame):
     return {
-        'micro_acc': micro_accuracy(df),
-        'macro_acc': macro_accuracy(df),
+        "micro_acc": micro_accuracy(df),
+        "macro_acc": macro_accuracy(df),
+        "precision" : precision(df),
+        "recall" : recall(df),
+        "f1" : f1(df),
         "theilU" : theilU(df),
-        'coverage': coverage(df),
-        'in_vocab' : vocabulary_coverage(df),
+        "coverage": coverage(df),
+        "in_vocab" : vocabulary_coverage(df),
         "optimal_threshold" : optimal_confidence_threshold(df),
-        'average_prediction_level': average_prediction_level(df),
+        "average_prediction_level": average_prediction_level(df),
         "confidence_when" : confidence_stats(df),
         "hierarchical_metric" : hierarchical_metric(df),
     }
@@ -201,6 +243,9 @@ def evaluate_all_metrics(df : pd.DataFrame):
 SIMPLE_METRICS = (
     "micro_acc",
     "macro_acc",
+    "precision",
+    "recall",
+    "f1",
     "theilU",
     "coverage",
     "in_vocab",
