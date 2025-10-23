@@ -207,20 +207,40 @@ SIMPLE_METRICS = (
     "optimal_threshold"
 )
 
-def main(file : str | None=None, optimal : bool=False, all : bool=False):
+def main(
+        file : str | None=None,
+        threshold : float | list[float] | None=None, 
+        optimal : bool=False, 
+        all : bool=False
+    ):
+    if threshold is not None and optimal:
+        raise ValueError(
+            'Setting threshold(s) (`threshold`) and choosing the '
+            'thresholds dynamically (`optimal`) is mutually exclusive.'
+        )
     if file is None:
         file = os.path.join(os.path.dirname(__file__), "demo.csv")
     df = MetricDF.from_source(file)
+    refresh_df = False
     if optimal:
-        threshold = optimal_confidence_threshold(df)
+        threshold = [v for k, v in sorted(optimal_confidence_threshold(df).items(), key=lambda x : x[0])]
+    if threshold is not None:
+        lvls = sorted(set(df.level))
+        if isinstance(threshold, list) and len(threshold) == 1:
+            threshold = threshold[0]
         if isinstance(threshold, float):
-            df.loc[df.index, "threshold"] = threshold
+            thresholds = [threshold] * len(lvls)
         else:
-            for level, t in threshold.items():
-                df.loc[df.level == level, "threshold"] = t
-        df.prediction_made = df._default(df, "prediction_made")
-        df.correct = df._default(df, "correct")
-        df = MetricDF(df, strict=False)
+            thresholds = threshold
+        if len(lvls) != len(thresholds):
+            raise ValueError(
+                f'Number of supplied thresholds {len(thresholds)} must '
+                f'equal number of levels in metric source {len(lvls)}'
+            )
+        for lvl, thr in zip(lvls, thresholds):
+            mask = df.level == lvl
+            df.loc[mask, "threshold"] = thr
+        df = MetricDF(df.drop(["prediction_made", "correct"], axis=1), strict=False)
     metrics = evaluate_all_metrics(df)
     if all:
         print(pretty_string_dict(metrics))
@@ -231,7 +251,8 @@ def main(file : str | None=None, optimal : bool=False, all : bool=False):
 def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file", help="Path to the result files.")
-    parser.add_argument("-o", "--optimal", action="store_true", help="Use dynamically calculated optimal confidence threshold for metrics.")
+    parser.add_argument("-o", "--optimal", action="store_true", help="Use dynamically calculated optimal confidence threshold for metrics (overrides optional threshold column in file).")
+    parser.add_argument("-t", "--threshold", type=float, nargs="+", default=None, required=False, help="Set the confidence threshold(s) manually (overrides optional threshold column in file).")
     parser.add_argument('-a', '--all', action="store_true", help="Print full metric results, otherwise only the metric table (default).")
     args = parser.parse_args()
     main(**vars(args))
