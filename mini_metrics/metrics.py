@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import argparse
 import os
+from math import isfinite
+from typing import Iterable, SupportsFloat
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix
 
+from mini_metrics import format_table, pretty_string_dict
 from mini_metrics.data import MetricDF
-from mini_metrics import pretty_string_dict, format_table
+
 
 # Helpers
 def to_float(x):
+    if isinstance(x, float):
+        return x
     return float(pd.to_numeric(x))
 
 def cast_float(func):
@@ -26,7 +31,8 @@ def filter_known(func):
 
 def compute_per_level(func):
     def wrapper(df : MetricDF, *args, **kwargs):
-        levels = sorted(set(df.level))
+        levels = df.level.unique()
+        levels.sort()
         if len(levels) < 2:
             return func(df, *args, **kwargs)
         return {
@@ -34,6 +40,15 @@ def compute_per_level(func):
             for level in levels
         }
     return wrapper
+
+def macro_average(skip_nonfinite : bool=False):
+    def decorator(func):
+        def wrapper(df : MetricDF, cls=None, *args, **kwargs):
+            if cls is not None:
+                return func(df, cls=cls, *args, **kwargs)
+            return mean((func(df, cls=cls, *args, **kwargs) for cls in df.label.unique()), skip_nonfinite=skip_nonfinite)
+        return wrapper
+    return decorator
 
 def standard_metric(filter : bool=True):
     if filter:
@@ -45,6 +60,16 @@ def standard_metric(filter : bool=True):
     return decorator
 
 # Mathematical functions
+def mean(x : Iterable[SupportsFloat], skip_nonfinite : bool=False):
+    x = map(float, x)
+    if skip_nonfinite:
+        x = filter(isfinite, x)
+    s = n = 0
+    for e in x:
+        s += e
+        n += 1
+    return float('nan') if n == 0 else s / n
+
 def shannon_entropy(X : np.ndarray, skip0 : bool=True):
     if skip0:
         X = X[X > 0]
@@ -86,41 +111,38 @@ def micro_accuracy(df : MetricDF):
     return (corr == 1).mean()
 
 @standard_metric()
-def macro_accuracy(df : MetricDF):
-    grps = sorted(set(df.label))
-    return sum([micro_accuracy(tdf) for group in grps if len(tdf := df[df.label == group]) > 0]) / len(grps)
+@macro_average()
+def macro_accuracy(df : MetricDF, cls : str):
+    return micro_accuracy(df[df.label == cls])
 
-# @standard_metric()
-# def precision(df : MetricDF):
-#     grps = sorted(set(df.labels))
-#     v = []
-#     for grp in grps:
-#         tp = (df.correct[df.label == grp] == 1).sum()
-#         fp = (df.correct[df.label == grp] == -1).sum()
-#         dem = tp + fp
-#         if dem == 0:
-#             v.append(0)
-#         else:
-#             v.append(tp / dem)
-#     if len(v) == 0:
-#         return float('nan')
-#     return sum(v) / len(v)
+@standard_metric()
+@macro_average()
+def precision(df : MetricDF, cls : str):
+    """
+    Calculated as macro-average over all present label classes.
+    """
+    return micro_accuracy(df[df.prediction == cls])
 
-# @standard_metric()
-# def recall(df : MetricDF):
-#     grps = sorted(set(df.labels))
-#     v = []
-#     for grp in grps:
-#         tp = (df.correct == 1).sum()
-#         fn = (df.correct == 0).sum()
-#         dem = tp + fn
-#         if dem == 0:
-#             return float('nan')
-#         return tp / dem
+@standard_metric()
+@macro_average()
+def recall(df : MetricDF, cls : str):
+    """
+    Calculated as macro-average over all present label classes.
+    """
+    return (df[df.label == cls].correct == 1).mean()
 
-# @standard_metric()
-# def f1(df : MetricDF):
-#     return 2 / (1 / precision(df) + 1 / recall(df))
+@standard_metric()
+@macro_average()
+def f1(df : MetricDF, cls : str):
+    """
+    Calculated as macro-average over all present label classes.
+    """
+    P, R = precision(df, cls=cls), recall(df, cls=cls)
+    if not isfinite(P) or not isfinite(R):
+        return float('nan')
+    if P == 0 or R == 0:
+        return 0
+    return 2 / (1 / P + 1 / R)
 
 # Theil's U / Uncertainty coefficient
 @standard_metric()
@@ -221,9 +243,9 @@ def evaluate_all_metrics(df : pd.DataFrame):
     return {
         "micro_acc": micro_accuracy(df),
         "macro_acc": macro_accuracy(df),
-        # "precision" : precision(df),
-        # "recall" : recall(df),
-        # "f1" : f1(df),
+        "precision" : precision(df),
+        "recall" : recall(df),
+        "f1" : f1(df),
         "theilU" : theilU(df),
         "coverage": coverage(df),
         "in_vocab" : vocabulary_coverage(df),
@@ -236,9 +258,9 @@ def evaluate_all_metrics(df : pd.DataFrame):
 SIMPLE_METRICS = (
     "micro_acc",
     "macro_acc",
-    # "precision",
-    # "recall",
-    # "f1",
+    "precision",
+    "recall",
+    "f1",
     "theilU",
     "coverage",
     "in_vocab",
