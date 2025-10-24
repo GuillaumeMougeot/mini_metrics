@@ -23,6 +23,20 @@ SCHEMA = (
     ("correct", int) # Optional
 )
 
+def first_nonzero_ordered(mask: np.ndarray, arr: np.ndarray):
+    if mask.shape != arr.shape:
+        raise ValueError("mask and arr must have the same shape")
+    idx = np.argsort(arr)
+    sorted_mask = mask[idx]
+    return int(np.nonzero(sorted_mask)[0][0]) if sorted_mask.any() else -1
+
+def group_arr(arr : np.ndarray):
+    inverse = np.argsort(arr)
+    sorted_arr = arr[inverse]
+    split_indices = np.flatnonzero(np.diff(sorted_arr)) + 1
+    groups = np.split(inverse, split_indices)
+    return [(val, idxs) for val, idxs in zip(np.unique(arr), groups)]
+
 class COLUMNS_DEFAULT:
     @staticmethod
     def prediction_level(df : MetricDF):
@@ -61,20 +75,6 @@ class COLUMNS_DEFAULT:
         return getattr(self, what)(df)
 
 OPTIONAL_COLUMNS = tuple([col for col, _ in SCHEMA if col in COLUMNS_DEFAULT()])
-
-def first_nonzero_ordered(mask: np.ndarray, arr: np.ndarray):
-    if mask.shape != arr.shape:
-        raise ValueError("mask and arr must have the same shape")
-    idx = np.argsort(arr)
-    sorted_mask = mask[idx]
-    return int(np.nonzero(sorted_mask)[0][0]) if sorted_mask.any() else -1
-
-def group_arr(arr : np.ndarray):
-    inverse = np.argsort(arr)
-    sorted_arr = arr[inverse]
-    split_indices = np.flatnonzero(np.diff(sorted_arr)) + 1
-    groups = np.split(inverse, split_indices)
-    return [(val, idxs) for val, idxs in zip(np.unique(arr), groups)]
 
 class MetricDF(pd.DataFrame):
     _metadata = ["_validated"] # keep track of whether we have validated the DF

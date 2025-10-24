@@ -8,6 +8,7 @@ from typing import Iterable, SupportsFloat
 import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix
+from tqdm.auto import tqdm
 
 from mini_metrics import format_table, pretty_string_dict
 from mini_metrics.data import MetricDF
@@ -241,18 +242,20 @@ def hierarchical_metric(
 # Run all metrics in one call
 def evaluate_all_metrics(df : pd.DataFrame):
     return {
-        "micro_acc": micro_accuracy(df),
-        "macro_acc": macro_accuracy(df),
-        "precision" : precision(df),
-        "recall" : recall(df),
-        "f1" : f1(df),
-        "theilU" : theilU(df),
-        "coverage": coverage(df),
-        "in_vocab" : vocabulary_coverage(df),
-        "optimal_threshold" : optimal_confidence_threshold(df),
-        "average_prediction_level": average_prediction_level(df),
-        "confidence_when" : confidence_stats(df),
-        "hierarchical_metric" : hierarchical_metric(df),
+        metric : func(df) for metric, func in tqdm({
+            "micro_acc": micro_accuracy,
+            "macro_acc": macro_accuracy,
+            "precision" : precision,
+            "recall" : recall,
+            "f1" : f1,
+            "theilU" : theilU,
+            "coverage": coverage,
+            "in_vocab" : vocabulary_coverage,
+            "optimal_threshold" : optimal_confidence_threshold,
+            "average_prediction_level": average_prediction_level,
+            "confidence_when" : confidence_stats,
+            "hierarchical_metric" : hierarchical_metric,
+        }.items(), desc="Computing metrics", unit="metric", leave=False)
     }
 
 SIMPLE_METRICS = (
@@ -281,7 +284,6 @@ def main(
     if file is None:
         file = os.path.join(os.path.dirname(__file__), "demo.csv")
     df = MetricDF.from_source(file)
-    refresh_df = False
     if optimal:
         threshold = optimal_confidence_threshold(df)
         if isinstance(threshold, dict):
