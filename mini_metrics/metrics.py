@@ -1,195 +1,46 @@
 from __future__ import annotations
 
 import argparse
-import collections.abc
-# from concurrent.futures import ThreadPoolExecutor
 import json
 import os
-import weakref
-from itertools import repeat
 from math import isfinite
-from typing import Any, Callable, Iterable, SupportsFloat
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix
 from tqdm.auto import tqdm
-from tqdm.contrib.concurrent import thread_map
 
-from mini_metrics import df_from_dict, format_table, pretty_string_dict
-from mini_metrics.data import MetricDF, group_arr
+from mini_metrics.data import MetricDF
+from mini_metrics.helpers import df_from_dict, format_table, pretty_string_dict
+from mini_metrics.math import mean, shannon_entropy, to_float
+from mini_metrics.register import (METRICS, SIMPLE_METRICS, average, metric,
+                                   variant)
 
-
-# Helpers
-def to_float(x):
-    if isinstance(x, float):
-        return x
-    return float(pd.to_numeric(x))
-
-def cast_float(func):
-    def wrapper(*args, **kwargs):
-        return to_float(func(*args, **kwargs))
-    return wrapper
-
-def filter_known(func):
-    def wrapper(df : MetricDF, *args, **kwargs):
-        return func(df[df.known_label], *args, **kwargs)
-    return wrapper
-
-def compute_per_level(func):
-    def wrapper(df : MetricDF, *args, **kwargs):
-        levels = df.level.unique()
-        levels.sort()
-        if len(levels) < 2:
-            return func(df, *args, **kwargs)
-        return {
-            int(level) : func(df[df.level == level], *args, **kwargs)
-            for level in levels
-        }
-    return wrapper
-
-def group_map(
-        df : MetricDF, 
-        group_idx : list[np.ndarray], 
-        func : Callable[[MetricDF], Any], 
-        *args, 
-        progress : bool=False,
-        **kwargs
-    ):
-    # normalize indices
-    blocks = []
-    lengths = []
-    for ix in group_idx:
-        if ix is None:
-            ix = np.empty(0, dtype=np.int64)
-        ix = np.asarray(ix, dtype=np.int64)
-        blocks.append(ix)
-        lengths.append(ix.size)
-
-    if not blocks:
-        return iter(())  # empty generator
-
-    order = np.concatenate(blocks) if len(blocks) > 1 else blocks[0]
-    starts = np.cumsum([0] + lengths[:-1])
-    counts = np.asarray(lengths, dtype=np.int64)
-
-    # single reindex, then contiguous slices
-    df_sorted = df.take(order)
-
-    def _gen():
-        iloc = df_sorted.iloc
-        it = zip(starts, counts)
-        if progress:
-            it = tqdm(it, total=len(blocks), desc="Mapping over groups...", leave=False, unit="group", dynamic_ncols=True)
-        for s, c in it:
-            yield func(iloc[s:s + c], *args, **kwargs)
-
-    return _gen()
-
-def average(
-        macro : bool=True, 
-        group = "label", 
-        by = "label",
-        skip_nonfinite : bool=False
-    ):
-    def decorator(func):
-        def wrapper(df : MetricDF, aggregate : bool=True, _macro=macro, _no_grp : bool=False, *args, **kwargs):
-            if _no_grp:
-                return func(df, *args, **kwargs)
-
-            grps = getattr(df, group).unique()
-            if len(grps) <= 1:
-                v = func(df, *args, **kwargs)
-                w = 1 and len(df) if _macro else len(df)
-                return v if aggregate else {g : (v, w) for g in grps}
-            
-            idxs = df.groupby(by, sort=False, observed=True).indices
-            empty = np.empty((0,), dtype=np.int64)
-
-            values = group_map(df, map(idxs.get, grps, repeat(empty)), func, *args, progress=len(grps)>=32, **kwargs)
-            weights = repeat(1) if _macro else (
-                getattr(df, group)
-                .value_counts(sort=False)
-                .reindex(grps, fill_value=0)
-                .to_numpy(dtype=float)
-            )
-
-            if aggregate:
-                return mean(values, w=weights, skip_nonfinite=skip_nonfinite)
-            return {cls : (v, w) for cls, v, w in zip(grps, values, weights)}
-        return wrapper
-    return decorator
-
-def micro(func):
-    def wrapper(*args, **kwargs):
-        return func(*args, _macro=False, **kwargs)
-    return wrapper
-
-def standard_metric(filter : bool=True, cast : bool=True):
-    decs = [compute_per_level]
-    if cast:
-        decs.append(cast_float)
-    if filter:
-        decs.append(filter_known)
-    def decorator(func):
-        for dec in reversed(decs):
-            func = dec(func)
-        return func
-    return decorator
-
-# Mathematical functions
-def mean(
-        x : Iterable[SupportsFloat], 
-        w : SupportsFloat | Iterable[SupportsFloat] | None=None, 
-        skip_nonfinite : bool=False
-    ):
-    _w = 1.0 if w is None else w
-    if not isinstance(_w, collections.abc.Iterable):
-        _w = repeat(_w)
-    _x = map(float, x)
-    s = n = 0
-    for e, w in zip(_x, _w):
-        if skip_nonfinite and not (isfinite(e) and isfinite(w)):
-            continue
-        s += e * w
-        n += w
-    return float('nan') if n == 0 else s / n
-
-def shannon_entropy(X : np.ndarray, skip0 : bool=True):
-    if skip0:
-        X = X[X > 0]
-    @cast_float
-    def inner(x : np.ndarray):
-        x = x / x.sum()
-        return -(x * np.log(x)).sum()
-    return inner(X)
-
-# Macro accuracy at each level
-@cast_float
-def accuracy_score(df : MetricDF, balanced=True, adjusted=False):
-    """Implementation based on https://scikit-learn.org/stable/modules/generated/sklearn.metrics.balanced_accuracy_score.html
-    """
-    C = confusion_matrix(df.label, df.prediction)
-    if balanced:
-        with np.errstate(divide="ignore", invalid="ignore"):
-            per_class = np.diag(C) / C.sum(axis=1)
-        if np.any(np.isnan(per_class)):
-            # warnings.warn("y_pred contains classes not in y_true")
-            per_class = per_class[~np.isnan(per_class)]
-        score = np.mean(per_class)
-        if adjusted:
-            n_classes = len(per_class)
-            if n_classes > 1: # bug fix if only one y_true class has been detected
-                chance = 1 / n_classes
-                score -= chance
-                score /= 1 - chance
-    else:
-        score = np.diag(C).sum() / C.sum()
-    return score
+# # Macro accuracy at each level
+# @cast_float
+# def accuracy_score(df : MetricDF, balanced=True, adjusted=False):
+#     """Implementation based on https://scikit-learn.org/stable/modules/generated/sklearn.metrics.balanced_accuracy_score.html
+#     """
+#     C = confusion_matrix(df.label, df.prediction)
+#     if balanced:
+#         with np.errstate(divide="ignore", invalid="ignore"):
+#             per_class = np.diag(C) / C.sum(axis=1)
+#         if np.any(np.isnan(per_class)):
+#             # warnings.warn("y_pred contains classes not in y_true")
+#             per_class = per_class[~np.isnan(per_class)]
+#         score = np.mean(per_class)
+#         if adjusted:
+#             n_classes = len(per_class)
+#             if n_classes > 1: # bug fix if only one y_true class has been detected
+#                 chance = 1 / n_classes
+#                 score -= chance
+#                 score /= 1 - chance
+#     else:
+#         score = np.diag(C).sum() / C.sum()
+#     return score
 
 # Accuracy
-@standard_metric()
-@average()
+@metric(chain=[average()])
 def accuracy(df : MetricDF, remove_abstain : bool=True):
     corr = df.correct
     if remove_abstain:
@@ -198,23 +49,21 @@ def accuracy(df : MetricDF, remove_abstain : bool=True):
         return 0.0
     return (corr == 1).mean()
 
-@standard_metric(cast=False)
-@average(by="prediction")
+@metric(chain=[average(by="prediction")])
 def precision(df : MetricDF):
     """
     Calculated as macro-average over all present label classes.
     """
-    return accuracy(df, _no_grp=True)
+    return accuracy(df, _no_wrap=True)
 
-@standard_metric(cast=False)
-@average()
+@metric(chain=[average()])
 def recall(df : MetricDF):
     """
     Calculated as macro-average over all present label classes.
     """
-    return accuracy(df, remove_abstain=False, _no_grp=True)
+    return accuracy(df, remove_abstain=False, _no_wrap=True)
 
-@standard_metric(cast=False)
+@metric()
 def f1(df : MetricDF, _macro : bool=True):
     """
     Calculated as macro-average over all present label classes.
@@ -234,8 +83,14 @@ def f1(df : MetricDF, _macro : bool=True):
         f1s.append(f1)
     return mean(f1s, ws)
 
+register_micro = variant("micro")
+register_micro(accuracy)
+register_micro(precision)
+register_micro(recall)
+register_micro(f1)
+
 # Theil's U / Uncertainty coefficient
-@standard_metric()
+@metric()
 def theilU(df : MetricDF):
     C = confusion_matrix(df.label, df.prediction).astype(float)
     N, CS, RS = [C.sum(a) for a in [None, 0, 1]] 
@@ -249,7 +104,7 @@ def theilU(df : MetricDF):
     return 1 - H_XY / eN
 
 # Coverage
-@standard_metric()
+@metric()
 def coverage(df : MetricDF):
     """Proportion of instances where the model made any prediction
       (i.e., had confidence ≥ threshold at some level).
@@ -257,19 +112,18 @@ def coverage(df : MetricDF):
     return df.prediction_made.mean()
 
 # Proportion of known labels
-@standard_metric(filter=False)
+@metric(filter=False)
 def vocabulary_coverage(df : MetricDF):
     return df.known_label.mean()
 
 # Average Prediction Level
-@cast_float
+@metric(per_level=False, filter=False)
 def average_prediction_level(df : MetricDF):
     return df.prediction_level.mean()
 
 
 # Mean Confidence of Correct vs Incorrect Predictions
-@compute_per_level
-@filter_known
+@metric(cast=False)
 def confidence_stats(df : MetricDF):
     outcomes = {
         "incorrect" : -1,
@@ -281,8 +135,7 @@ def confidence_stats(df : MetricDF):
         for k, v in outcomes.items()
     }
 
-@standard_metric()
-@average(macro=False)
+@metric(chain=[average(macro=False)])
 def optimal_confidence_threshold(df : MetricDF):
     """
     Computes the confidence threshold using the 
@@ -308,7 +161,10 @@ def optimal_confidence_threshold(df : MetricDF):
     k = np.argmax(cdf_incorrect - cdf_correct)
     return (z[k] + z[min(k+1, len(z) - 1)]) / 2
 
-@cast_float
+register_macro = variant("macro")
+register_macro(optimal_confidence_threshold)
+
+@metric(per_level=False, filter=False)
 def hierarchical_metric(
         df : MetricDF, 
         rewards : pd.Series[float] | None=None, 
@@ -331,40 +187,12 @@ def hierarchical_metric(
 
 # Run all metrics in one call
 def evaluate_all_metrics(df : pd.DataFrame):
-    return {
-        metric : func(df) for metric, func in tqdm({
-            "accuracy": accuracy,
-            "precision" : precision,
-            "recall" : recall,
-            "f1" : f1,
-            "micro_accuracy" : micro(precision),
-            "micro_precision" : micro(precision),
-            "micro_recall" : micro(recall),
-            "micro_f1" : micro(f1),
-            "theilU" : theilU,
-            "coverage": coverage,
-            "in_vocab" : vocabulary_coverage,
-            "optimal_threshold" : optimal_confidence_threshold,
-            "average_prediction_level": average_prediction_level,
-            "confidence_when" : confidence_stats,
-            "hierarchical_metric" : hierarchical_metric,
-        }.items(), desc="Computing metrics", unit="metric", leave=False, dynamic_ncols=True)
-    }
-
-SIMPLE_METRICS = (
-    "accuracy",
-    "precision",
-    "recall",
-    "f1",
-    "micro_accuracy",
-    "micro_precision",
-    "micro_recall",
-    "micro_f1",
-    "theilU",
-    "coverage",
-    "in_vocab",
-    "optimal_threshold"
-)
+    with tqdm(METRICS.items(), desc="Computing metrics", unit="metric", leave=False, dynamic_ncols=True) as pbar:
+        retval = dict()
+        for metric, func in pbar:
+            pbar.set_description_str(f'Computing {metric}')
+            retval[metric] = func(df)
+    return retval
 
 def main(
         file : str | None=None,

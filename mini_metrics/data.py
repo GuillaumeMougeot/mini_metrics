@@ -7,6 +7,20 @@ from zipfile import ZipFile
 import numpy as np
 import pandas as pd
 
+def first_nonzero_ordered(mask: np.ndarray, arr: np.ndarray):
+    if mask.shape != arr.shape:
+        raise ValueError("mask and arr must have the same shape")
+    idx = np.argsort(arr)
+    sorted_mask = mask[idx]
+    return int(np.nonzero(sorted_mask)[0][0]) if sorted_mask.any() else -1
+
+def group_arr(arr : np.ndarray):
+    inverse = np.argsort(arr)
+    sorted_arr = arr[inverse]
+    split_indices = np.flatnonzero(np.diff(sorted_arr)) + 1
+    groups = np.split(inverse, split_indices)
+    return [(val, idxs) for val, idxs in zip(np.unique(arr), groups)]
+
 _pd_nullable = {int: "int64", float: "float64", str: "string", bool : "bool"}
 
 SCHEMA = (
@@ -23,21 +37,11 @@ SCHEMA = (
     ("correct", int) # Optional
 )
 
-def first_nonzero_ordered(mask: np.ndarray, arr: np.ndarray):
-    if mask.shape != arr.shape:
-        raise ValueError("mask and arr must have the same shape")
-    idx = np.argsort(arr)
-    sorted_mask = mask[idx]
-    return int(np.nonzero(sorted_mask)[0][0]) if sorted_mask.any() else -1
-
-def group_arr(arr : np.ndarray):
-    inverse = np.argsort(arr)
-    sorted_arr = arr[inverse]
-    split_indices = np.flatnonzero(np.diff(sorted_arr)) + 1
-    groups = np.split(inverse, split_indices)
-    return [(val, idxs) for val, idxs in zip(np.unique(arr), groups)]
-
 class COLUMNS_DEFAULT:
+    """
+    Default factory for optional
+    columns in the `mini_metrics` result schema
+    """
     @staticmethod
     def prediction_level(df : MetricDF):
         prediction_level = -np.ones((len(df.index),), dtype=np.long)
@@ -64,7 +68,10 @@ class COLUMNS_DEFAULT:
     
     @staticmethod
     def correct(df : MetricDF):
-        return (df.confidence >= df.threshold) * ((df.prediction == df.label) * 2  - 1)
+        return (
+            (df.confidence >= df.threshold) * 
+            ((df.prediction == df.label) * 2  - 1)
+        )
     
     def __contains__(self, other : str):
         return callable(getattr(self, other, None))
@@ -77,6 +84,36 @@ class COLUMNS_DEFAULT:
 OPTIONAL_COLUMNS = tuple([col for col, _ in SCHEMA if col in COLUMNS_DEFAULT()])
 
 class MetricDF(pd.DataFrame):
+    """
+    A subclass of `pd.DataFrame` with strict requirements
+    to contained columns, data types and order.
+
+    This class defines and validates the `mini_metrics` result schema.
+
+    Required columns:
+    ```
+    instance_id : int
+    filename    : str
+    level       : int # (0, 1, ..., n)
+    label       : str
+    prediction  : str
+    confidence  : float # [0, 1]
+    threshold   : float # [0, 1]
+    ```
+
+    *Note: Threshold might be optional in the future 
+    under an assumption that the threshold is 0.*
+
+    Optional columns:
+    ```
+    known_label     : bool
+    prediction_level: int # (-1, 0, 1, ..., n)
+    prediction_made : bool
+    correct         : int # (-1, 0, 1)
+    ```
+
+    Any missing optional columns will be inferred from the required columns.
+    """
     _metadata = ["_validated"] # keep track of whether we have validated the DF
     _schema = SCHEMA
     _default = COLUMNS_DEFAULT()
@@ -86,7 +123,10 @@ class MetricDF(pd.DataFrame):
         if isinstance(src, str) and os.path.splitext(src)[1].lower().endswith("zip"):
             with ZipFile(src) as zp:
                 if len(zp.filelist) != 1:
-                    raise RuntimeError(f'MetricDF zip archive source contains {len(zp.filelist)} files, but should contain exactly 1!')
+                    raise RuntimeError(
+                        f'MetricDF zip archive source contains {len(zp.filelist)} '
+                        'files, but should contain exactly 1!'
+                    )
                 return cls.from_source(zp.open(zp.filelist[0]))
         return cls(pd.read_csv(src))
 
@@ -102,13 +142,24 @@ class MetricDF(pd.DataFrame):
             self._validated = getattr(other, "_validated", False)
         return super().__finalize__(other, method=method)
 
-    def __init__(self, data=None, *, coerce: bool = True, strict : bool=True, _validated : bool=False, **kwargs):
+    def __init__(
+            self, 
+            data=None, 
+            *, 
+            coerce: bool = True, 
+            strict : bool=True, 
+            _validated : bool=False, 
+            **kwargs
+        ):
         super().__init__(data, **kwargs)
         self._validated = _validated
         if not self._validated:
             self.validate(coerce=coerce, strict=strict)
             self._validated = True
-            self.__init__(self.reindex(columns=[col for col, _ in self._schema]), _validated=True)
+            self.__init__(
+                self.reindex(columns=[col for col, _ in self._schema]), 
+                _validated=True
+            )
 
     def invalid_schema(self, msg : str):
         raise RuntimeError(f'Invalid data schema:\n{msg}')
@@ -137,7 +188,8 @@ class MetricDF(pd.DataFrame):
                 actual_pos = self.columns.get_loc(col)
                 if actual_pos != expected_loc:
                     self.invalid_schema(
-                        f"Found column: {col} in the wrong location {actual_pos}, expected {expected_loc}"
+                        f'Found column: {col} in the wrong location '
+                        f'{actual_pos}, expected {expected_loc}'
                     )
 
             # Check dtype
@@ -145,7 +197,8 @@ class MetricDF(pd.DataFrame):
             if str(self.dtypes[col]) != dtype:
                 if not coerce:
                     self.invalid_schema(
-                        f"Found column: {col} with invalid dtype {self.dtypes[col]}, expected {dtype}"
+                        f'Found column: {col} with invalid dtype '
+                        f'{self.dtypes[col]}, expected {dtype}'
                     )
                 else:
                     self[col] = self[col].astype(dtype, copy=False)
@@ -157,9 +210,12 @@ class MetricDF(pd.DataFrame):
         for col in lazy_cols:
             self[col] = self._default(self, col)
 
+    # TODO: Unused?
     def add_prediction_columns(self, drop_temp: bool = True):
         """
-        Add prediction_made, prediction_level, correct, above_threshold, prediction_at_level, label_at_level.
+        Add prediction_made, prediction_level, correct, above_threshold, 
+        prediction_at_level, label_at_level.
+        
         Supports variable number of levels per instance_id.
         Keeps prediction_at_level, label_at_level as int.
 
@@ -171,7 +227,12 @@ class MetricDF(pd.DataFrame):
         self['above_threshold'] = self.confidence > self.threshold
 
         # Compute prediction_made (any above threshold per instance)
-        prediction_made = self.groupby('instance_id')['above_threshold'].transform('any').astype(int)
+        prediction_made = (
+            self
+            .groupby('instance_id')['above_threshold']
+            .transform('any')
+            .astype(int)
+        )
         self['prediction_made'] = prediction_made
 
         # Compute lowest level where prediction is made
@@ -201,6 +262,8 @@ class MetricDF(pd.DataFrame):
 
         # If drop_metric
         if drop_temp:
-            self = self.drop(columns=['above_threshold', 'prediction_at_level', 'label_at_level'])
+            self = self.drop(
+                columns=['above_threshold', 'prediction_at_level', 'label_at_level']
+            )
 
         return self
