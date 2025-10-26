@@ -1,3 +1,5 @@
+import pandas as pd
+
 def pretty_string_dict(d : dict, indent : int=0, digits : int=3, concatenate : bool=True):
     parts = []
     for k, v in d.items():
@@ -39,3 +41,14 @@ def format_table(d : dict, keys : list[str] | tuple[str, ...], digits : int=2):
         lines = [line[(col_widths[0] + 2):] for line in lines]
     return "\n".join(lines)
 
+def df_from_dict(d : dict, keys : list[str] | tuple[str, ...]):
+    if isinstance(list(d.values())[0], (float, int)):
+        ds : dict[str, dict[int, float]] = {k : {0 : float(v)} for k, v in d.items() if k in keys}
+    else:
+        ds : dict[str, dict[int, float]] = {k : v for k, v in d.items() if k in keys}
+    levels = sorted(list(list(ds.values())[0].keys()))
+    df_data = {
+        k : [v[lvl] for lvl in levels] for k, v in ds.items()
+    }
+    df_data["level"] = levels
+    return pd.DataFrame.from_dict(df_data).reindex(labels=["level", *keys], axis="columns")

@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 import argparse
+import collections.abc
+# from concurrent.futures import ThreadPoolExecutor
+import json
 import os
+import weakref
+from itertools import repeat
 from math import isfinite
-from typing import Iterable, SupportsFloat
+from typing import Any, Callable, Iterable, SupportsFloat
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix
 from tqdm.auto import tqdm
+from tqdm.contrib.concurrent import thread_map
 
-from mini_metrics import format_table, pretty_string_dict
-from mini_metrics.data import MetricDF
+from mini_metrics import df_from_dict, format_table, pretty_string_dict
+from mini_metrics.data import MetricDF, group_arr
 
 
 # Helpers
@@ -42,33 +48,111 @@ def compute_per_level(func):
         }
     return wrapper
 
-def macro_average(skip_nonfinite : bool=False):
+def group_map(
+        df : MetricDF, 
+        group_idx : list[np.ndarray], 
+        func : Callable[[MetricDF], Any], 
+        *args, 
+        progress : bool=False,
+        **kwargs
+    ):
+    # normalize indices
+    blocks = []
+    lengths = []
+    for ix in group_idx:
+        if ix is None:
+            ix = np.empty(0, dtype=np.int64)
+        ix = np.asarray(ix, dtype=np.int64)
+        blocks.append(ix)
+        lengths.append(ix.size)
+
+    if not blocks:
+        return iter(())  # empty generator
+
+    order = np.concatenate(blocks) if len(blocks) > 1 else blocks[0]
+    starts = np.cumsum([0] + lengths[:-1])
+    counts = np.asarray(lengths, dtype=np.int64)
+
+    # single reindex, then contiguous slices
+    df_sorted = df.take(order)
+
+    def _gen():
+        iloc = df_sorted.iloc
+        it = zip(starts, counts)
+        if progress:
+            it = tqdm(it, total=len(blocks), desc="Mapping over groups...", leave=False, unit="group", dynamic_ncols=True)
+        for s, c in it:
+            yield func(iloc[s:s + c], *args, **kwargs)
+
+    return _gen()
+
+def average(
+        macro : bool=True, 
+        group = "label", 
+        by = "label",
+        skip_nonfinite : bool=False
+    ):
     def decorator(func):
-        def wrapper(df : MetricDF, cls=None, *args, **kwargs):
-            if cls is not None:
-                return func(df, cls=cls, *args, **kwargs)
-            return mean((func(df, cls=cls, *args, **kwargs) for cls in df.label.unique()), skip_nonfinite=skip_nonfinite)
+        def wrapper(df : MetricDF, aggregate : bool=True, _macro=macro, _no_grp : bool=False, *args, **kwargs):
+            if _no_grp:
+                return func(df, *args, **kwargs)
+
+            grps = getattr(df, group).unique()
+            if len(grps) <= 1:
+                v = func(df, *args, **kwargs)
+                w = 1 and len(df) if _macro else len(df)
+                return v if aggregate else {g : (v, w) for g in grps}
+            
+            idxs = df.groupby(by, sort=False, observed=True).indices
+            empty = np.empty((0,), dtype=np.int64)
+
+            values = group_map(df, map(idxs.get, grps, repeat(empty)), func, *args, progress=len(grps)>=32, **kwargs)
+            weights = repeat(1) if _macro else (
+                getattr(df, group)
+                .value_counts(sort=False)
+                .reindex(grps, fill_value=0)
+                .to_numpy(dtype=float)
+            )
+
+            if aggregate:
+                return mean(values, w=weights, skip_nonfinite=skip_nonfinite)
+            return {cls : (v, w) for cls, v, w in zip(grps, values, weights)}
         return wrapper
     return decorator
 
-def standard_metric(filter : bool=True):
+def micro(func):
+    def wrapper(*args, **kwargs):
+        return func(*args, _macro=False, **kwargs)
+    return wrapper
+
+def standard_metric(filter : bool=True, cast : bool=True):
+    decs = [compute_per_level]
+    if cast:
+        decs.append(cast_float)
     if filter:
-        def decorator(func):
-            return compute_per_level(cast_float(filter_known(func)))
-    else:
-        def decorator(func):
-            return compute_per_level(cast_float(func))
+        decs.append(filter_known)
+    def decorator(func):
+        for dec in reversed(decs):
+            func = dec(func)
+        return func
     return decorator
 
 # Mathematical functions
-def mean(x : Iterable[SupportsFloat], skip_nonfinite : bool=False):
-    x = map(float, x)
-    if skip_nonfinite:
-        x = filter(isfinite, x)
+def mean(
+        x : Iterable[SupportsFloat], 
+        w : SupportsFloat | Iterable[SupportsFloat] | None=None, 
+        skip_nonfinite : bool=False
+    ):
+    _w = 1.0 if w is None else w
+    if not isinstance(_w, collections.abc.Iterable):
+        _w = repeat(_w)
+    _x = map(float, x)
     s = n = 0
-    for e in x:
-        s += e
-        n += 1
+    for e, w in zip(_x, _w):
+        if skip_nonfinite and not (isfinite(e) and isfinite(w)):
+            continue
+        s += e * w
+        n += w
     return float('nan') if n == 0 else s / n
 
 def shannon_entropy(X : np.ndarray, skip0 : bool=True):
@@ -105,45 +189,50 @@ def accuracy_score(df : MetricDF, balanced=True, adjusted=False):
 
 # Accuracy
 @standard_metric()
-def micro_accuracy(df : MetricDF):
-    corr = df.correct[df.correct != 0]
+@average()
+def accuracy(df : MetricDF, remove_abstain : bool=True):
+    corr = df.correct
+    if remove_abstain:
+        corr = corr[df.correct != 0]
     if len(corr) == 0:
         return 0.0
     return (corr == 1).mean()
 
-@standard_metric()
-@macro_average()
-def macro_accuracy(df : MetricDF, cls : str):
-    return micro_accuracy(df[df.label == cls])
-
-@standard_metric()
-@macro_average()
-def precision(df : MetricDF, cls : str):
+@standard_metric(cast=False)
+@average(by="prediction")
+def precision(df : MetricDF):
     """
     Calculated as macro-average over all present label classes.
     """
-    return micro_accuracy(df[df.prediction == cls])
+    return accuracy(df, _no_grp=True)
 
-@standard_metric()
-@macro_average()
-def recall(df : MetricDF, cls : str):
+@standard_metric(cast=False)
+@average()
+def recall(df : MetricDF):
     """
     Calculated as macro-average over all present label classes.
     """
-    return (df[df.label == cls].correct == 1).mean()
+    return accuracy(df, remove_abstain=False, _no_grp=True)
 
-@standard_metric()
-@macro_average()
-def f1(df : MetricDF, cls : str):
+@standard_metric(cast=False)
+def f1(df : MetricDF, _macro : bool=True):
     """
     Calculated as macro-average over all present label classes.
     """
-    P, R = precision(df, cls=cls), recall(df, cls=cls)
-    if not isfinite(P) or not isfinite(R):
-        return float('nan')
-    if P == 0 or R == 0:
-        return 0
-    return 2 / (1 / P + 1 / R)
+    Ps, Rs = precision(df, aggregate=False, _macro=_macro), recall(df, aggregate=False, _macro=_macro)
+    ws = []
+    f1s = []
+    for cls in Ps.keys():
+        P, R = Ps[cls][0], Rs[cls][0]
+        ws.append(1 if _macro else Ps[cls][1])
+        if not isfinite(P) or not isfinite(R):
+            f1 = float('nan')
+        if P == 0 or R == 0:
+            f1 = 0.0
+        else:
+            f1 = 2 / (1 / P + 1 / R)
+        f1s.append(f1)
+    return mean(f1s, ws)
 
 # Theil's U / Uncertainty coefficient
 @standard_metric()
@@ -193,6 +282,7 @@ def confidence_stats(df : MetricDF):
     }
 
 @standard_metric()
+@average(macro=False)
 def optimal_confidence_threshold(df : MetricDF):
     """
     Computes the confidence threshold using the 
@@ -243,11 +333,14 @@ def hierarchical_metric(
 def evaluate_all_metrics(df : pd.DataFrame):
     return {
         metric : func(df) for metric, func in tqdm({
-            "micro_acc": micro_accuracy,
-            "macro_acc": macro_accuracy,
+            "accuracy": accuracy,
             "precision" : precision,
             "recall" : recall,
             "f1" : f1,
+            "micro_accuracy" : micro(precision),
+            "micro_precision" : micro(precision),
+            "micro_recall" : micro(recall),
+            "micro_f1" : micro(f1),
             "theilU" : theilU,
             "coverage": coverage,
             "in_vocab" : vocabulary_coverage,
@@ -255,15 +348,18 @@ def evaluate_all_metrics(df : pd.DataFrame):
             "average_prediction_level": average_prediction_level,
             "confidence_when" : confidence_stats,
             "hierarchical_metric" : hierarchical_metric,
-        }.items(), desc="Computing metrics", unit="metric", leave=False)
+        }.items(), desc="Computing metrics", unit="metric", leave=False, dynamic_ncols=True)
     }
 
 SIMPLE_METRICS = (
-    "micro_acc",
-    "macro_acc",
+    "accuracy",
     "precision",
     "recall",
     "f1",
+    "micro_accuracy",
+    "micro_precision",
+    "micro_recall",
+    "micro_f1",
     "theilU",
     "coverage",
     "in_vocab",
@@ -272,6 +368,7 @@ SIMPLE_METRICS = (
 
 def main(
         file : str | None=None,
+        output : str | None=None,
         threshold : float | list[float] | None=None, 
         optimal : bool=False, 
         all : bool=False
@@ -309,13 +406,28 @@ def main(
     if all:
         print(pretty_string_dict(metrics))
         print()
+        if output:
+            out_json = f'{output}.json'
+            if os.path.exists(out_json):
+                print("Removed old", out_json)
+                os.remove(out_json)
+            with open(out_json, "w") as f:
+                json.dump(metrics, f)
     print("METRIC TABLE")
     print(format_table(metrics, keys=SIMPLE_METRICS))
+    if output:
+        out_csv = f'{output}.csv'
+        if os.path.exists(out_csv):
+            print("Removed old", out_csv)
+            os.remove(out_csv)
+        with open(out_csv, "w") as f:
+            df_from_dict(metrics, SIMPLE_METRICS).to_csv(f, index=False)
 
 def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file", help="Path to the result files.")
-    parser.add_argument("-o", "--optimal", action="store_true", help="Use dynamically calculated optimal confidence threshold for metrics (overrides optional threshold column in file).")
+    parser.add_argument('-o', '--output', type=str, default=None, required=False, help="Name of the output file(s) (table and JSON, if --all).")
+    parser.add_argument("-O", "--optimal", action="store_true", help="Use dynamically calculated optimal confidence threshold for metrics (overrides optional threshold column in file).")
     parser.add_argument("-t", "--threshold", type=float, nargs="+", default=None, required=False, help="Set the confidence threshold(s) manually (overrides optional threshold column in file).")
     parser.add_argument('-a', '--all', action="store_true", help="Print full metric results, otherwise only the metric table (default).")
     args = parser.parse_args()
