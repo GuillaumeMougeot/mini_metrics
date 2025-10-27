@@ -39,6 +39,9 @@ from mini_metrics.register import (METRICS, SIMPLE_METRICS, average, metric,
 #         score = np.diag(C).sum() / C.sum()
 #     return score
 
+register_micro = variant("micro")
+register_macro = variant("macro")
+
 # Accuracy
 @metric(chain=[average()])
 def accuracy(df : MetricDF, remove_abstain : bool=True):
@@ -83,7 +86,6 @@ def f1(df : MetricDF, _macro : bool=True):
         f1s.append(f1)
     return mean(f1s, ws)
 
-register_micro = variant("micro")
 register_micro(accuracy)
 register_micro(precision)
 register_micro(recall)
@@ -91,7 +93,7 @@ register_micro(f1)
 
 # Theil's U / Uncertainty coefficient
 @metric()
-def theilU(df : MetricDF):
+def theilU(df : MetricDF, _macro : bool=False):
     C = confusion_matrix(df.label, df.prediction).astype(float)
     N, CS, RS = [C.sum(a) for a in [None, 0, 1]] 
     if N <= 1:
@@ -100,8 +102,13 @@ def theilU(df : MetricDF):
     if eN <= 0.0:
         return float('nan')
     eCS = np.fromiter(map(shannon_entropy, C.T), float)
-    H_XY = (CS * eCS)[CS > 0].sum() / N
+    if not _macro:
+        H_XY = (CS * eCS)[CS > 0].sum() / N
+    else:
+        H_XY = eCS[CS > 0].mean()
     return 1 - H_XY / eN
+
+# register_macro(theilU)
 
 # Coverage
 @metric()
@@ -161,7 +168,6 @@ def optimal_confidence_threshold(df : MetricDF):
     k = np.argmax(cdf_incorrect - cdf_correct)
     return (z[k] + z[min(k+1, len(z) - 1)]) / 2
 
-register_macro = variant("macro")
 register_macro(optimal_confidence_threshold)
 
 @metric(per_level=False, filter=False)
@@ -185,18 +191,63 @@ def hierarchical_metric(
     )
     return m.sum() / df.instance_id.nunique()
 
+def class_path(cls : str, c2p : dict[str, str]):
+    path = [cls]
+    while path[-1] in c2p:
+        path.append(c2p[path[-1]])
+    return path
+
+def rank_distance(x : str, y : str, c2p : dict[str, str]):
+    xp = class_path(x, c2p)
+    yp = class_path(y, c2p)
+    hit = max([i for i, (a, b) in enumerate(zip(xp[::-1], yp[::-1])) if a == b], default=-1)
+    return min(len(xp), len(yp)) - (hit + 1)
+
+def child2parent_from_combinations(combinations : dict[str, tuple[str, ...]]):
+    child2parent : dict[str, str] = dict()
+    for comb in combinations.values():
+        for c, p in zip(comb, comb[1:]):
+            if c not in child2parent:
+                child2parent[c] = p
+    return child2parent
+
+@metric(per_level=False)
+def rank_error(df : MetricDF):
+    """
+    Average distance to last common ancestor.
+    
+    For a prediction, x, and label, y, we find their current
+    hierarchy level, l_0, and the hierarchy level of their 
+    last common ancestor, LCA:
+    ```
+    l_0 = min(level(x), level(y))
+    l_LCA = max(i if (p^i_x == p^i_y) for i in [-1, 0, ... l0 - 1])
+    rank_error = l_0 - l_LCA
+    ```
+    here `p^i_x` gives the parent of `x` at level `i` (`p^{-1}_x` is always the root).
+    """
+    if (combinations := getattr(df, "_class_combinations", None)) is None:
+        return None
+    child2parent = child2parent_from_combinations(combinations)
+    df = df[df.level == df.prediction_level]
+    return mean((rank_distance(x, y, child2parent) for x, y in zip(df.prediction, df.label)))
+
 # Run all metrics in one call
 def evaluate_all_metrics(df : pd.DataFrame):
     with tqdm(METRICS.items(), desc="Computing metrics", unit="metric", leave=False, dynamic_ncols=True) as pbar:
         retval = dict()
         for metric, func in pbar:
             pbar.set_description_str(f'Computing {metric}')
-            retval[metric] = func(df)
+            value = func(df)
+            if value is None:
+                continue
+            retval[metric] = value
     return retval
 
 def main(
         file : str | None=None,
         output : str | None=None,
+        combinations : str | None=None,
         threshold : float | list[float] | None=None, 
         optimal : bool=False, 
         all : bool=False
@@ -209,6 +260,8 @@ def main(
     if file is None:
         file = os.path.join(os.path.dirname(__file__), "demo.csv")
     df = MetricDF.from_source(file)
+    if combinations is not None:
+        df = df.add_combinations(combinations)
     if optimal:
         threshold = optimal_confidence_threshold(df)
         if isinstance(threshold, dict):
@@ -253,10 +306,11 @@ def main(
 def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file", help="Path to the result files.")
-    parser.add_argument('-o', '--output', type=str, default=None, required=False, help="Name of the output file(s) (table and JSON, if --all).")
+    parser.add_argument("-o", "--output", type=str, default=None, required=False, help="Name of the output file(s) (table and JSON, if --all).")
+    parser.add_argument("-c", "--combinations", type=str, default=None, required=False, help="Path to a CSV file with columns for each hierarchy level, where each row is a leaf-species and it's parents.")
     parser.add_argument("-O", "--optimal", action="store_true", help="Use dynamically calculated optimal confidence threshold for metrics (overrides optional threshold column in file).")
     parser.add_argument("-t", "--threshold", type=float, nargs="+", default=None, required=False, help="Set the confidence threshold(s) manually (overrides optional threshold column in file).")
-    parser.add_argument('-a', '--all', action="store_true", help="Print full metric results, otherwise only the metric table (default).")
+    parser.add_argument("-a", "--all", action="store_true", help="Print full metric results, otherwise only the metric table (default).")
     args = parser.parse_args()
     main(**vars(args))
 

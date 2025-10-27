@@ -6,6 +6,8 @@ from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
+from tqdm.auto import tqdm
+
 
 def first_nonzero_ordered(mask: np.ndarray, arr: np.ndarray):
     if mask.shape != arr.shape:
@@ -27,8 +29,8 @@ SCHEMA = (
     ("instance_id", int),
     ("filename", str),
     ("level", int),
-    ("label", int),
-    ("prediction", int),
+    ("label", str),
+    ("prediction", str),
     ("confidence", float),
     ("threshold", float),
     ("known_label", bool), # Optional
@@ -114,7 +116,8 @@ class MetricDF(pd.DataFrame):
 
     Any missing optional columns will be inferred from the required columns.
     """
-    _metadata = ["_validated"] # keep track of whether we have validated the DF
+    _metadata = ("_validated", "_level_labels", "_class_combinations") # keep track of whether we have validated the DF
+    _metadata_default = {"_validated" : False}
     _schema = SCHEMA
     _default = COLUMNS_DEFAULT()
 
@@ -133,31 +136,40 @@ class MetricDF(pd.DataFrame):
     @property
     def _constructor(self):
         def _c(*args, **kwargs):
-            kwargs["_validated"] = getattr(self, "_validated", False)
+            # kwargs["_validated"] = getattr(self, "_validated", False)
+            for field in self._metadata:
+                default = self._metadata_default.get(field, None)
+                kwargs[field] = getattr(self, field, default)
             return type(self)(*args, **kwargs).__finalize__(self)
         return _c
 
     def __finalize__(self, other=None, method=None):
         if isinstance(other, MetricDF):
-            self._validated = getattr(other, "_validated", False)
+            # self._validated = getattr(other, "_validated", False)
+            for field in self._metadata:
+                default = self._metadata_default.get(field, None)
+                setattr(self, field, getattr(other, field, default))
         return super().__finalize__(other, method=method)
 
     def __init__(
             self, 
-            data=None, 
+            data=None,
             *, 
             coerce: bool = True, 
             strict : bool=True, 
-            _validated : bool=False, 
             **kwargs
         ):
+        sniped_kwargs = {k : kwargs.pop(k) for k in self._metadata if k in kwargs}
         super().__init__(data, **kwargs)
-        self._validated = _validated
+        for field in self._metadata:
+            if not hasattr(self, field):
+                default = self._metadata_default.get(field, None)
+                setattr(self, field, sniped_kwargs.get(field, default))
         if not self._validated:
             self.validate(coerce=coerce, strict=strict)
             self._validated = True
             self.__init__(
-                self.reindex(columns=[col for col, _ in self._schema]), 
+                self.reindex(columns=[col for col, _ in self._schema]),
                 _validated=True
             )
 
@@ -209,6 +221,42 @@ class MetricDF(pd.DataFrame):
         # Compute optional columns if missing
         for col in lazy_cols:
             self[col] = self._default(self, col)
+    
+    def add_combinations(self, src : str | list[tuple[str, ...]]):
+        if isinstance(src, str):
+            data = pd.read_csv(src)
+            levels = list(map(str, data.columns))
+            combinations = [row.tolist() for _, row in data.iterrows()]
+        else:
+            combinations = src
+            levels = list(map(str, range(len(combinations[0]))))
+        combinations = [tuple(map(str, c)) for c in combinations]
+        combinations = {c[0] : c for c in combinations}
+        cur_lvls = len(self.level.unique())
+        if cur_lvls == len(levels):
+            return
+        if cur_lvls != 1:
+            raise NotImplementedError(
+                "Adding additional combinations to a MetricDF with more than one existing level is not currently supported."
+            )
+        new_df = {k : [] for k in self.columns}
+        for row in tqdm(self.itertuples(), total=len(self), desc="Creating higher-order rows", leave=False, dynamic_ncols=True):
+            for lvl, lvl_label in enumerate(levels):
+                for col in self.columns:
+                    orig = getattr(row, col)
+                    if lvl == 0:
+                        value = orig
+                    if col == "level":
+                        value = lvl
+                    elif col in ("label", "prediction"):
+                        value = combinations[orig][lvl]
+                    else:
+                        value = orig
+                    new_df[col].append(value)
+        new_df = pd.DataFrame.from_dict(new_df)
+        assert isinstance(new_df, pd.DataFrame)
+        new_df = new_df.reindex(columns=self.columns).sort_values(by="instance_id", inplace=False)
+        return self.__class__(new_df, _validated=self._validated, _class_combinations=combinations, _level_labels=levels)
 
     # TODO: Unused?
     def add_prediction_columns(self, drop_temp: bool = True):
