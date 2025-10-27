@@ -239,7 +239,7 @@ def main(
             if os.path.exists(out_json):
                 print("Removed old", out_json)
                 os.remove(out_json)
-            with open(out_json, "w") as f:
+            with open(out_json, "w", encoding="utf8", newline=os.linesep) as f:
                 json.dump(metrics, f)
     print("METRIC TABLE")
     print(format_table(metrics, keys=SIMPLE_METRICS))
@@ -248,8 +248,7 @@ def main(
         if os.path.exists(out_csv):
             print("Removed old", out_csv)
             os.remove(out_csv)
-        with open(out_csv, "w") as f:
-            df_from_dict(metrics, SIMPLE_METRICS).to_csv(f, index=False)
+        df_from_dict(metrics, SIMPLE_METRICS).to_csv(out_csv, index=False)
 
 def cli():
     parser = argparse.ArgumentParser()
