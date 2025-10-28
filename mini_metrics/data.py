@@ -136,20 +136,18 @@ class MetricDF(pd.DataFrame):
     @property
     def _constructor(self):
         def _c(*args, **kwargs):
-            # kwargs["_validated"] = getattr(self, "_validated", False)
-            for field in self._metadata:
-                default = self._metadata_default.get(field, None)
-                kwargs[field] = getattr(self, field, default)
-            return type(self)(*args, **kwargs).__finalize__(self)
+            return type(self)(*args, **{**self.metadata(), **kwargs}).__finalize__(self)
         return _c
 
     def __finalize__(self, other=None, method=None):
         if isinstance(other, MetricDF):
-            # self._validated = getattr(other, "_validated", False)
-            for field in self._metadata:
-                default = self._metadata_default.get(field, None)
+            for field in other._metadata:
+                default = other._metadata_default.get(field, None)
                 setattr(self, field, getattr(other, field, default))
         return super().__finalize__(other, method=method)
+    
+    def metadata(self):
+        return {k : getattr(self, k, self._metadata_default.get(k, None)) for k in self._metadata}
 
     def __init__(
             self, 
@@ -159,6 +157,12 @@ class MetricDF(pd.DataFrame):
             strict : bool=True, 
             **kwargs
         ):
+        if isinstance(data, MetricDF):
+            old_metadata = data.metadata()
+            old_metadata.pop("_validated", None)
+            for k, v in old_metadata.items():
+                if k not in kwargs:
+                    kwargs[k] = v
         sniped_kwargs = {k : kwargs.pop(k) for k in self._metadata if k in kwargs}
         super().__init__(data, **kwargs)
         for field in self._metadata:
@@ -170,7 +174,7 @@ class MetricDF(pd.DataFrame):
             self._validated = True
             self.__init__(
                 self.reindex(columns=[col for col, _ in self._schema]),
-                _validated=True
+                **self.metadata()
             )
 
     def invalid_schema(self, msg : str):
@@ -234,7 +238,9 @@ class MetricDF(pd.DataFrame):
         combinations = {c[0] : c for c in combinations}
         cur_lvls = len(self.level.unique())
         if cur_lvls == len(levels):
-            return
+            self._class_combinations = combinations
+            self._level_labels = levels
+            return self
         if cur_lvls != 1:
             raise NotImplementedError(
                 "Adding additional combinations to a MetricDF with more than one existing level is not currently supported."
@@ -256,7 +262,12 @@ class MetricDF(pd.DataFrame):
         new_df = pd.DataFrame.from_dict(new_df)
         assert isinstance(new_df, pd.DataFrame)
         new_df = new_df.reindex(columns=self.columns).sort_values(by="instance_id", inplace=False)
-        return self.__class__(new_df, _validated=self._validated, _class_combinations=combinations, _level_labels=levels)
+        new_metadata = self.metadata()
+        new_metadata.update({
+            "_level_labels" : levels,
+            "_class_combinations" : combinations
+        })
+        return type(self)(new_df, **new_metadata)
 
     # TODO: Unused?
     def add_prediction_columns(self, drop_temp: bool = True):

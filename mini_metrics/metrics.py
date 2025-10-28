@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from collections import Counter
 from math import isfinite
 
 import numpy as np
@@ -198,6 +199,8 @@ def class_path(cls : str, c2p : dict[str, str]):
     return path
 
 def rank_distance(x : str, y : str, c2p : dict[str, str]):
+    if x == y:
+        return 0
     xp = class_path(x, c2p)
     yp = class_path(y, c2p)
     hit = max([i for i, (a, b) in enumerate(zip(xp[::-1], yp[::-1])) if a == b], default=-1)
@@ -211,7 +214,7 @@ def child2parent_from_combinations(combinations : dict[str, tuple[str, ...]]):
                 child2parent[c] = p
     return child2parent
 
-@metric(per_level=False)
+@metric(per_level=False, cast=False)
 def rank_error(df : MetricDF):
     """
     Average distance to last common ancestor.
@@ -230,7 +233,13 @@ def rank_error(df : MetricDF):
         return None
     child2parent = child2parent_from_combinations(combinations)
     df = df[df.level == df.prediction_level]
-    return mean((rank_distance(x, y, child2parent) for x, y in zip(df.prediction, df.label)))
+    errs = [rank_distance(x, y, child2parent) for x, y in zip(df.prediction, df.label)]
+    avg = mean(errs)
+    counts = dict(Counter(errs))
+    return {
+        "average" : avg,
+        "counts" : counts
+    }
 
 # Run all metrics in one call
 def evaluate_all_metrics(df : pd.DataFrame):
@@ -250,7 +259,8 @@ def main(
         combinations : str | None=None,
         threshold : float | list[float] | None=None, 
         optimal : bool=False, 
-        all : bool=False
+        all : bool=False,
+        subsample : int | None=None
     ):
     if threshold is not None and optimal:
         raise ValueError(
@@ -260,6 +270,8 @@ def main(
     if file is None:
         file = os.path.join(os.path.dirname(__file__), "demo.csv")
     df = MetricDF.from_source(file)
+    if subsample is not None and subsample != 1:
+        df = df.take(df.index[slice(None, None, subsample)])
     if combinations is not None:
         df = df.add_combinations(combinations)
     if optimal:
@@ -311,6 +323,7 @@ def cli():
     parser.add_argument("-O", "--optimal", action="store_true", help="Use dynamically calculated optimal confidence threshold for metrics (overrides optional threshold column in file).")
     parser.add_argument("-t", "--threshold", type=float, nargs="+", default=None, required=False, help="Set the confidence threshold(s) manually (overrides optional threshold column in file).")
     parser.add_argument("-a", "--all", action="store_true", help="Print full metric results, otherwise only the metric table (default).")
+    parser.add_argument("--subsample", type=int, default=None, required=None, help="Subsample data (for faster debugging probably) before doing anything else.")
     args = parser.parse_args()
     main(**vars(args))
 
