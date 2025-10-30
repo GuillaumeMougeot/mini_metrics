@@ -1,9 +1,12 @@
+import contextvars
 import functools
+import inspect
 import sys
-from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Sequence
+from contextlib import contextmanager
 from itertools import repeat
-from typing import Any, Concatenate
+from typing import (Any, Concatenate, Literal, ParamSpec, TypeVar,
+                    TypeVarTuple, cast, overload)
 
 import numpy as np
 
@@ -11,126 +14,188 @@ from mini_metrics.data import MetricDF
 from mini_metrics.helpers import group_map
 from mini_metrics.math import mean, to_float
 
-Metric_Function = Callable[Concatenate[MetricDF, ...], Any]
+P = ParamSpec("P")
+Q = ParamSpec("Q")
+R = TypeVar("R")
+T = TypeVar("T")
 
-def drop_no_wrap(func : Metric_Function):
-    @functools.wraps(func)
-    def wrapper(*args, _no_wrap : bool=True, **kwargs):
-        return func(*args, **kwargs)
+MetricFn = Callable[Concatenate[MetricDF, P], R]
+Decorator = Callable[[MetricFn[P, R]], Callable[Concatenate[MetricDF, Q], T]]
+
+_SKIP_DECOS: contextvars.ContextVar[bool] = contextvars.ContextVar("_SKIP_DECOS", default=False)
+
+@contextmanager
+def skip_decorators():
+    tok = _SKIP_DECOS.set(True)
+    try:
+        yield
+    finally:
+        _SKIP_DECOS.reset(tok)
+
+def compatible(
+        decorator : Callable[[Callable[P, R]], Callable[Q, T]],
+        *,
+        preserve_sig: bool = True
+    ) -> Callable[[Callable[P, R]], Callable[Q, T]]:
+    @functools.wraps(decorator)
+    def new_decorator(func):
+        wrapped = decorator(func)
+
+        @functools.wraps(func)
+        def gate(*args, **kwargs):
+            if _SKIP_DECOS.get():
+                return func(*args, **kwargs)
+            return wrapped(*args, **kwargs)
+
+        # prefer wrapped’s metadata but expose func’s public signature
+        functools.update_wrapper(gate, wrapped)
+        if preserve_sig:
+            try:
+                gate.__signature__ = inspect.signature(func)
+            except (TypeError, ValueError):
+                pass
+            anns = getattr(func, "__annotations__", None)
+            if isinstance(anns, dict):
+                gate.__annotations__ = dict(anns)
+        gate.__name__ = func.__name__
+        gate.__qualname__ = func.__qualname__
+        return gate
+    return new_decorator
+
+@compatible
+def cast_float(func: MetricFn[P, R]) -> MetricFn[P, float]:
+    def wrapper(df: MetricDF, /, *args: P.args, **kwargs: P.kwargs) -> float:
+        return to_float(func(df, *args, **kwargs))
     return wrapper
 
-def cast_float(func : Metric_Function):
-    @functools.wraps(func)
-    def wrapper(*args, _no_wrap : bool=False, **kwargs):
-        if _no_wrap:
-            return func(*args, _no_wrap=True, **kwargs)
-        return to_float(func(*args, **kwargs))
-    return wrapper
-
-def filter_known(func : Metric_Function):
-    @functools.wraps(func)
-    def wrapper(df : MetricDF, *args, _no_wrap : bool=False, **kwargs):
-        if _no_wrap:
-            return func(df, *args, _no_wrap=True, **kwargs)
+@compatible
+def filter_known(func: MetricFn[P, R]) -> MetricFn[P, R]:
+    def wrapper(df: MetricDF, /, *args: P.args, **kwargs: P.kwargs) -> R:
         return func(df[df.known_label], *args, **kwargs)
     return wrapper
 
-def compute_per_level(func : Metric_Function):
-    @functools.wraps(func)
-    def wrapper(df : MetricDF, *args, _no_wrap : bool=False, **kwargs):
-        if _no_wrap:
-            return func(df, *args, _no_wrap=True, **kwargs)
-        levels = df.level.unique()
-        levels.sort()
+@compatible
+def compute_per_level(func: MetricFn[P, R]) -> MetricFn[P, R | dict[int | str, R]]:
+    def wrapper(df: MetricDF, /, *args: P.args, **kwargs: P.kwargs) -> R | dict[int | str, R]:
+        levels: list[int] | list[str] = sorted(df.level.unique().tolist())
         if len(levels) <= 1:
             return func(df, *args, **kwargs)
-        return {
-            int(level) : func(df[df.level == level], *args, **kwargs)
-            for level in levels
-        }
+        return {lvl: func(df[df.level == lvl], *args, **kwargs) for lvl in levels}
     return wrapper
 
 def average(
-        macro : bool=True, 
-        group = "label", 
-        by = "label",
-        skip_nonfinite : bool=False
-    ):
-    def decorator(func : Metric_Function):
-        @functools.wraps(func)
+    macro: bool = True,
+    group: str = "label",
+    by: str = "label",
+    skip_nonfinite: bool = False,
+) -> Decorator[P, float, P, float | dict[Any, tuple[float, float]]]:
+    @compatible
+    def decorator(func: MetricFn[P, float]) -> Callable[Concatenate[MetricDF, P], float | dict[Any, tuple[float, float]]]:
+        @overload
+        def wrapper(df: MetricDF, /, *args: P.args, aggregate: Literal[True] = True, _macro: bool = ..., **kwargs: P.kwargs) -> float: ...
+        @overload
+        def wrapper(df: MetricDF, /, *args: P.args, aggregate: Literal[False], _macro: bool = ..., **kwargs: P.kwargs) -> dict[Any, tuple[float, float]]: ...
         def wrapper(
-                df : MetricDF, 
-                aggregate : bool=True, 
-                *args, 
-                _macro=macro, 
-                _no_wrap : bool=False, 
-                **kwargs
-            ):
-            if _no_wrap:
-                return func(df, *args, _no_wrap=True, **kwargs)
-
-            grps = getattr(df, group).unique()
+            df: MetricDF,
+            /,
+            *args: P.args,
+            aggregate: bool = True,
+            _macro: bool = macro,
+            **kwargs: P.kwargs,
+        ):
+            grps: Iterable[Any] = getattr(df, group).unique()
+            grps = list(grps)
             if len(grps) <= 1:
                 v = func(df, *args, **kwargs)
-                w = 1 and len(df) if _macro else len(df)
-                return v if aggregate else {g : (v, w) for g in grps}
-            
+                w = float(len(df) if not _macro else 1.0)
+                return v if aggregate else {grps[0] if grps else None: (v, w)}  # type: ignore[index]
             idxs = df.groupby(by, sort=False, observed=True).indices
             empty = np.empty((0,), dtype=np.int64)
-
             values = group_map(
-                df=df, 
-                group_idx=map(idxs.get, grps, repeat(empty)), 
-                func=func, 
-                *args, 
-                progress=len(grps)>=32, 
-                **kwargs
+                df=df,
+                group_idx=map(idxs.get, grps, repeat(empty)),
+                func=func,
+                *args,
+                progress=len(grps) >= 32,
+                **kwargs,
             )
-            weights = repeat(1) if _macro else (
+            weights = repeat(1.0) if _macro else (
                 getattr(df, group)
                 .value_counts(sort=False)
                 .reindex(grps, fill_value=0)
                 .to_numpy(dtype=float)
             )
-
             if aggregate:
                 return mean(values, W=weights, skip_nonfinite=skip_nonfinite)
-            return {cls : (v, w) for cls, v, w in zip(grps, values, weights)}
+            return {g: (v, w) for g, v, w in zip(grps, values, weights)}
         return wrapper
     return decorator
 
-METRIC_VARIANTS : dict[str, Callable[[Metric_Function], Metric_Function]]= {
-    "macro" : lambda f : functools.partial(f, _macro=True),
-    "micro" : lambda f : functools.partial(f, _macro=False)
+METRIC_VARIANTS: dict[str, Callable[[MetricFn], MetricFn]] = {
+    "macro": compatible(lambda f: functools.partial(f, _macro=True)),
+    "micro": compatible(lambda f: functools.partial(f, _macro=False)),
 }
 
-METRICS : OrderedDict[str, Metric_Function] = OrderedDict()
-SIMPLE_METRICS = []
+METRICS: dict[str, MetricFn] = {}
+SIMPLE_METRICS: list[str] = []
 
-def func_name(func : Callable):
-    name = func.__name__
-    if not isinstance(name, str):
-        raise TypeError(
-            f'Attempted to register metric with name: {name}, '
-            'but name should be a string.'
-        )
-    return name
+def _func_name(func: Callable[..., Any]) -> str:
+    n = func.__name__
+    if not isinstance(n, str):
+        raise TypeError("Metric name must be a string.")
+    return n
 
-def _register_metric(func : Callable, simple : bool):
-    global METRICS, SIMPLE_METRICS
-    name = func_name(func)
+def _register_metric(func: MetricFn, simple: bool) -> None:
+    name = _func_name(func)
     if name in METRICS:
-        raise ValueError(f'Metric {name} already registered!')
+        raise ValueError(f"Metric {name} already registered")
     METRICS[name] = func
     if simple:
         SIMPLE_METRICS.append(name)
 
+def _compose(
+        decorators: tuple[*S, Callable[[MetricFn[P, R]], MetricFn[Q, T]]]
+    ) -> Callable[[MetricFn[P, R]], MetricFn[Q, T]]:
+    def apply(f: Callable[..., Any]) -> Callable[..., Any]:
+        g = f
+        for d in reversed(decorators):
+            g = d(g)
+        return g
+    return apply
+
+S = TypeVarTuple("S")
+
+@overload
 def metric(
-        per_level : bool=True,
-        filter : bool=True, 
-        cast : bool=True,
-        force_simple : bool=False,
-        chain : list[Callable[[Metric_Function], Metric_Function]] | None=None
+    per_level: Literal[True] = True,
+    filter: bool = ...,
+    as_float: bool = ...,
+    force_simple: bool = ...,
+    chain: None = None,
+) -> Callable[[MetricFn[P, R]], MetricFn[P, dict[int | str, R] | R]]: ...
+@overload
+def metric(
+    per_level: Literal[False],
+    filter: bool = ...,
+    as_float: bool = ...,
+    force_simple: bool = ...,
+    chain: None = None,
+) -> Callable[[MetricFn[P, R]], MetricFn[P, R]]: ...
+@overload
+def metric(
+    per_level: bool = ...,
+    filter: bool = ...,
+    as_float: bool = ...,
+    force_simple: bool = ...,
+    chain: tuple[*S, Callable[[MetricFn[P, R]], MetricFn[Q, T]]] = ...,
+) -> Callable[[MetricFn[P, R]], MetricFn[Q, T]]: ...
+
+def metric(
+        per_level: bool = True,
+        filter: bool = True,
+        as_float: bool = True,
+        force_simple: bool = False,
+        chain: tuple[*S, Callable[[MetricFn[P, R]], MetricFn[Q, T]]] | None = None,
     ):
     """
     A general decorator factory for metric functions.
@@ -169,59 +234,40 @@ def metric(
             keyword argument `_no_wrap` and should skip their functionality and pass
             it along when they receive it as True.
     """
-    decs : list[Callable[[Metric_Function], Metric_Function]] = []
-    if filter:
-        decs.append(filter_known)
-    if per_level:
-        decs.append(compute_per_level)
-    if chain:
-        decs.extend(chain)
-    if cast:
-        decs.append(cast_float)
-    decs.append(drop_no_wrap)
-    simple = per_level and cast or force_simple
-    def decorator(func : Metric_Function):
-        wrapper = func
-        for dec in reversed(decs):
-            wrapper = dec(wrapper)
-        functools.update_wrapper(wrapper, func)
-        _register_metric(wrapper, simple=simple)
-        return wrapper
+    simple = (per_level and as_float) or force_simple
+    @compatible
+    def decorator(func: MetricFn[P, R]):
+        f = func
+        if as_float:
+            f = cast_float(f)
+        if chain:
+            f = _compose(chain)(f)
+        if per_level:
+            f = compute_per_level(f)
+        if filter:
+            f = filter_known(f)
+        _register_metric(f, simple=simple)
+        return f
     return decorator
 
-def variant(variant : str, export : bool=True):
-    """
-    Variant decorator factory.
-
-    Create a decorator for a metric variant, and register the variant.
-
-    The created decorator would typically be used solely for it's side-effects, 
-    rather than as an actual decorator.
-
-    The created variant will be registered in the appropriate namespace. 
-    """
-    decorator = METRIC_VARIANTS.get(variant, None)
-    if decorator is None:
-        raise KeyError(f'Metric variant type {variant} is not defined.')
-    def decorator_wrapper(func : Metric_Function):
-        orig_name = func_name(func)
-        wrapper = decorator(func)
-        functools.update_wrapper(wrapper, func)
-        wrapper.__name__ = f'{variant}_{orig_name}'
-        _register_metric(wrapper, simple=orig_name in SIMPLE_METRICS)
+def variant(name: str, export: bool = True) -> Callable[[MetricFn[P, R]], MetricFn[P, T]]:
+    deco = METRIC_VARIANTS.get(name)
+    if deco is None:
+        raise KeyError(f"Unknown variant {name}")
+    def wrapper(func: MetricFn[P, R]) -> MetricFn[P, T]:
+        orig = _func_name(func)
+        out = deco(func)
+        out.__name__ = f"{name}_{orig}"
+        _register_metric(out, simple=orig in SIMPLE_METRICS)
         if export:
             mod = sys.modules[func.__module__]
-            exists = callable(getattr(mod, wrapper.__name__, None))
-            if exists:
-                raise RuntimeError(
-                    f'Attempted to register "{variant}" variant in '
-                    f'{mod}, but it already exists.'
-                )
-            setattr(mod, wrapper.__name__, wrapper)
+            if callable(getattr(mod, out.__name__, None)):
+                raise RuntimeError(f'Variant "{name}" already exists in module')
+            setattr(mod, out.__name__, out)
             a = getattr(mod, "__all__", None)
             if a is None:
-                mod.__all__ = [wrapper.__name__]
-            elif wrapper.__name__ not in a:
-                a.append(wrapper.__name__)
-        return wrapper
-    return decorator_wrapper
+                mod.__all__ = [out.__name__]
+            elif out.__name__ not in a:
+                a.append(out.__name__)
+        return out
+    return wrapper

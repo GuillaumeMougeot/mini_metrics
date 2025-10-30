@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from collections import Counter
+from collections import Counter, OrderedDict
+from itertools import chain
 from math import isfinite
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -15,68 +17,60 @@ from mini_metrics.data import MetricDF
 from mini_metrics.helpers import df_from_dict, format_table, pretty_string_dict
 from mini_metrics.math import mean, shannon_entropy, to_float
 from mini_metrics.register import (METRICS, SIMPLE_METRICS, average, metric,
-                                   variant)
-
-# # Macro accuracy at each level
-# @cast_float
-# def accuracy_score(df : MetricDF, balanced=True, adjusted=False):
-#     """Implementation based on https://scikit-learn.org/stable/modules/generated/sklearn.metrics.balanced_accuracy_score.html
-#     """
-#     C = confusion_matrix(df.label, df.prediction)
-#     if balanced:
-#         with np.errstate(divide="ignore", invalid="ignore"):
-#             per_class = np.diag(C) / C.sum(axis=1)
-#         if np.any(np.isnan(per_class)):
-#             # warnings.warn("y_pred contains classes not in y_true")
-#             per_class = per_class[~np.isnan(per_class)]
-#         score = np.mean(per_class)
-#         if adjusted:
-#             n_classes = len(per_class)
-#             if n_classes > 1: # bug fix if only one y_true class has been detected
-#                 chance = 1 / n_classes
-#                 score -= chance
-#                 score /= 1 - chance
-#     else:
-#         score = np.diag(C).sum() / C.sum()
-#     return score
+                                   skip_decorators, variant)
 
 register_micro = variant("micro")
 register_macro = variant("macro")
 
 # Accuracy
-@metric(chain=[average()])
+@metric(chain=(average(),))
 def accuracy(df : MetricDF, remove_abstain : bool=True):
+    """
+    Micro-accuracy of a dataframe.
+
+    Args:
+        df: Data frame source.
+        remove_abstain: Compute accuracy for only rows where prediction_made is True.
+    """
     corr = df.correct
     if remove_abstain:
-        corr = corr[df.correct != 0]
+        corr = corr[df.prediction_made]
     if len(corr) == 0:
         return 0.0
     return (corr == 1).mean()
 
-@metric(chain=[average(by="prediction")])
+@metric(chain=(average(by="prediction"),))
 def precision(df : MetricDF):
     """
     Calculated as macro-average over all present label classes.
     """
-    return accuracy(df, _no_wrap=True)
+    with skip_decorators():
+        return cast(float, accuracy(df))
 
-@metric(chain=[average()])
+@metric(chain=(average(),))
 def recall(df : MetricDF):
     """
     Calculated as macro-average over all present label classes.
     """
-    return accuracy(df, remove_abstain=False, _no_wrap=True)
+    with skip_decorators():
+        return cast(float, accuracy(df, remove_abstain=False))
 
 @metric()
-def f1(df : MetricDF, _macro : bool=True):
+def f1(
+        df : MetricDF, 
+        aggregate : bool=True, 
+        _macro : bool=True
+    ) -> float | dict[str, tuple[float, float]]:
     """
     Calculated as macro-average over all present label classes.
     """
     Ps, Rs = precision(df, aggregate=False, _macro=_macro), recall(df, aggregate=False, _macro=_macro)
+    clss = []
     ws = []
     f1s = []
     for cls in Ps.keys():
         P, R = Ps[cls][0], Rs[cls][0]
+        clss.append(cls)
         ws.append(1 if _macro else Ps[cls][1])
         if not isfinite(P) or not isfinite(R):
             f1 = float('nan')
@@ -85,7 +79,9 @@ def f1(df : MetricDF, _macro : bool=True):
         else:
             f1 = 2 / (1 / P + 1 / R)
         f1s.append(f1)
-    return mean(f1s, ws)
+    if aggregate:
+        return mean(f1s, ws)
+    return {cls : (f1, w) for cls, w, f1 in zip(clss, ws, f1s)}
 
 register_micro(accuracy)
 register_micro(precision)
@@ -107,7 +103,7 @@ def theilU(df : MetricDF, _macro : bool=False):
         H_XY = (CS * eCS)[CS > 0].sum() / N
     else:
         H_XY = eCS[CS > 0].mean()
-    return 1 - H_XY / eN
+    return cast(float, 1 - H_XY / eN)
 
 # register_macro(theilU)
 
@@ -129,9 +125,8 @@ def vocabulary_coverage(df : MetricDF):
 def average_prediction_level(df : MetricDF):
     return df.prediction_level.mean()
 
-
 # Mean Confidence of Correct vs Incorrect Predictions
-@metric(cast=False)
+@metric(as_float=False)
 def confidence_stats(df : MetricDF):
     outcomes = {
         "incorrect" : -1,
@@ -143,8 +138,8 @@ def confidence_stats(df : MetricDF):
         for k, v in outcomes.items()
     }
 
-@metric(chain=[average(macro=False)])
-def optimal_confidence_threshold(df : MetricDF):
+@metric(chain=(average(macro=False),))
+def optimal_confidence_threshold(df : MetricDF) -> float:
     """
     Computes the confidence threshold using the 
     Youden index (or Kolmogorov-Smirnov statistic), 
@@ -214,7 +209,7 @@ def child2parent_from_combinations(combinations : dict[str, tuple[str, ...]]):
                 child2parent[c] = p
     return child2parent
 
-@metric(per_level=False, cast=False)
+@metric(per_level=False, as_float=False)
 def rank_error(df : MetricDF):
     """
     Average distance to last common ancestor.
@@ -233,9 +228,11 @@ def rank_error(df : MetricDF):
         return None
     child2parent = child2parent_from_combinations(combinations)
     df = df[df.level == df.prediction_level]
-    errs = [rank_distance(x, y, child2parent) for x, y in zip(df.prediction, df.label)]
-    avg = mean(errs)
-    counts = dict(Counter(errs))
+    errs = OrderedDict((lvl, []) for lvl in range(int(df.prediction_level.unique().max()) + 1))
+    for x, y, lvl in zip(df.prediction, df.label, df.prediction_level):
+        errs[lvl].append(rank_distance(x, y, child2parent))
+    avg = mean(chain(*errs.values()))
+    counts = OrderedDict((k, dict(Counter(v))) for k, v in errs.items())
     return {
         "average" : avg,
         "counts" : counts
@@ -243,7 +240,7 @@ def rank_error(df : MetricDF):
 
 # Run all metrics in one call
 def evaluate_all_metrics(df : pd.DataFrame):
-    with tqdm(METRICS.items(), desc="Computing metrics", unit="metric", leave=False, dynamic_ncols=True) as pbar:
+    with tqdm(METRICS.items(), desc="Computing metrics", unit="metric", leave=True, dynamic_ncols=True) as pbar:
         retval = dict()
         for metric, func in pbar:
             pbar.set_description_str(f'Computing {metric}')
