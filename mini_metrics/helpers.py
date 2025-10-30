@@ -1,5 +1,5 @@
-from collections.abc import Callable
-from typing import Any, Concatenate
+from collections.abc import Callable, Iterable
+from typing import Concatenate, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -148,15 +148,17 @@ def df_from_dict(metrics : dict, keys : list[str] | tuple[str, ...]):
         .reindex(labels=["level", *keys], axis="columns")
     )
 
+R = TypeVar("R")
+
 # General
 def group_map(
         df : MetricDF, 
         group_idx : list[np.ndarray], 
-        func : Callable[Concatenate[MetricDF, ...], Any], 
+        func : Callable[Concatenate[MetricDF, ...], R], 
         *args, 
         progress : bool=False,
         **kwargs
-    ):
+    ) -> Iterable[R]:
     """
     Function to iterate over groups of non-contiguous rows (indexes) 
     in a pandas dataframe in contiguous blocks by presorting rows.
