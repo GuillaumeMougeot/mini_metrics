@@ -1,4 +1,6 @@
+import os
 from collections.abc import Callable, Iterable
+from itertools import cycle
 from typing import Concatenate, TypeVar
 
 import numpy as np
@@ -7,7 +9,6 @@ from tqdm.auto import tqdm
 
 from mini_metrics.data import MetricDF
 
-from itertools import cycle
 
 # Results and printing
 def pretty_string_dict(
@@ -202,3 +203,26 @@ def group_map(
             yield func(iloc[s:s + c], *args, **kwargs)
 
     return _gen()
+
+def filter_df(df : MetricDF, filter : str | list[str]):
+    if isinstance(filter, str):
+        if os.path.isfile(filter):
+            with open(filter, "r") as f:
+                content = [l for l in map(str.strip, f.readlines()) if l]
+                if len(content) == 1:
+                    content = content[0].split(",")
+        else:
+            filter = [filter]
+    def _match(_df : MetricDF):
+        def _inner(__df : MetricDF):
+            __df = __df[__df.level == 0]
+            return False if len(__df) == 0 else __df.label.item() in filter
+        idx = _df.groupby("instance_id", sort=False, observed=True).indices
+        idx = [idx.get(grp, np.empty((0,), dtype=np.int64)) for grp in df.instance_id.unique()]
+        out = []
+        for i, v in zip(idx, group_map(_df, idx, _inner, progress=True)):
+            if v:
+                out.append(i)
+        return np.concatenate(out)
+    df = df.take(_match(df))
+    return df

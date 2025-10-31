@@ -241,6 +241,9 @@ class MetricDF(pd.DataFrame):
             self._class_combinations = combinations
             self._level_labels = levels
             return self
+        if cur_lvls == 0:
+            print("Adding additional combinations to an empty MetricDF is a no-op!")
+            return self
         if cur_lvls != 1:
             raise NotImplementedError(
                 "Adding additional combinations to a MetricDF with more than one existing level is not currently supported."

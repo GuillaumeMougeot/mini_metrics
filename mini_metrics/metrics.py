@@ -14,10 +14,11 @@ from sklearn.metrics import confusion_matrix
 from tqdm.auto import tqdm
 
 from mini_metrics.data import MetricDF
-from mini_metrics.helpers import df_from_dict, format_table, pretty_string_dict
-from mini_metrics.simple import mean, shannon_entropy, to_float
+from mini_metrics.helpers import (df_from_dict, filter_df, format_table,
+                                  pretty_string_dict)
 from mini_metrics.register import (METRICS, SIMPLE_METRICS, average, metric,
                                    skip_decorators, variant)
+from mini_metrics.simple import mean, shannon_entropy, to_float
 
 register_micro = variant("micro")
 register_macro = variant("macro")
@@ -257,7 +258,8 @@ def main(
         threshold : float | list[float] | None=None, 
         optimal : bool=False, 
         all : bool=False,
-        subsample : int | None=None
+        subsample : int | None=None,
+        label_filter : str | list[str] | None=None
     ):
     if threshold is not None and optimal:
         raise ValueError(
@@ -269,6 +271,8 @@ def main(
     df = MetricDF.from_source(file)
     if subsample is not None and subsample != 1:
         df = df.take(df.index[slice(None, None, subsample)])
+    if label_filter is not None:
+        df = filter_df(df, label_filter)
     if combinations is not None:
         df = df.add_combinations(combinations)
     if optimal:
@@ -319,6 +323,7 @@ def cli():
     parser.add_argument("-c", "--combinations", type=str, default=None, required=False, help="Path to a CSV file with columns for each hierarchy level, where each row is a leaf-species and it's parents.")
     parser.add_argument("-O", "--optimal", action="store_true", help="Use dynamically calculated optimal confidence threshold for metrics (overrides optional threshold column in file).")
     parser.add_argument("-t", "--threshold", type=float, nargs="+", default=None, required=False, help="Set the confidence threshold(s) manually (overrides optional threshold column in file).")
+    parser.add_argument("--label_filter", type=str, nargs="+", help="A list of or a file containg (level 0/species) labels to subset the results by.")
     parser.add_argument("-a", "--all", action="store_true", help="Print full metric results, otherwise only the metric table (default).")
     parser.add_argument("--subsample", type=int, default=None, required=None, help="Subsample data (for faster debugging probably) before doing anything else.")
     args = parser.parse_args()
