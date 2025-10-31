@@ -12,12 +12,13 @@ import numpy as np
 
 from mini_metrics.data import MetricDF
 from mini_metrics.helpers import group_map
-from mini_metrics.math import mean, to_float
+from mini_metrics.simple import mean, to_float
 
 P = ParamSpec("P")
 Q = ParamSpec("Q")
 R = TypeVar("R")
 T = TypeVar("T")
+S = TypeVarTuple("S")
 
 MetricFn = Callable[Concatenate[MetricDF, P], R]
 Decorator = Callable[[MetricFn[P, R]], Callable[Concatenate[MetricDF, Q], T]]
@@ -163,8 +164,6 @@ def _compose(
         return g
     return apply
 
-S = TypeVarTuple("S")
-
 @overload
 def metric(
     per_level: Literal[True] = True,
@@ -172,10 +171,10 @@ def metric(
     as_float: bool = ...,
     force_simple: bool = ...,
     chain: None = None,
-) -> Callable[[MetricFn[P, R]], MetricFn[P, dict[int | str, R] | R]]: ...
+) -> Callable[[MetricFn[P, R]], MetricFn[P, R | dict[int | str, R]]]: ...
 @overload
 def metric(
-    per_level: Literal[False],
+    per_level: Literal[False] = False,
     filter: bool = ...,
     as_float: bool = ...,
     force_simple: bool = ...,
@@ -183,7 +182,15 @@ def metric(
 ) -> Callable[[MetricFn[P, R]], MetricFn[P, R]]: ...
 @overload
 def metric(
-    per_level: bool = ...,
+    per_level: Literal[True] = True,
+    filter: bool = ...,
+    as_float: bool = ...,
+    force_simple: bool = ...,
+    chain: tuple[*S, Callable[[MetricFn[P, R]], MetricFn[Q, T]]] = ...,
+) -> Callable[[MetricFn[P, R]], MetricFn[Q, T | dict[int | str, T]]]: ...
+@overload
+def metric(
+    per_level: Literal[False] = False,
     filter: bool = ...,
     as_float: bool = ...,
     force_simple: bool = ...,

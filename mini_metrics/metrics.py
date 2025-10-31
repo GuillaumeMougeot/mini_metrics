@@ -15,7 +15,7 @@ from tqdm.auto import tqdm
 
 from mini_metrics.data import MetricDF
 from mini_metrics.helpers import df_from_dict, format_table, pretty_string_dict
-from mini_metrics.math import mean, shannon_entropy, to_float
+from mini_metrics.simple import mean, shannon_entropy, to_float
 from mini_metrics.register import (METRICS, SIMPLE_METRICS, average, metric,
                                    skip_decorators, variant)
 
