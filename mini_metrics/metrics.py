@@ -233,7 +233,7 @@ def rank_error(df : MetricDF):
     for x, y, lvl in zip(df.prediction, df.label, df.prediction_level):
         errs[lvl].append(rank_distance(x, y, child2parent))
     avg = mean(chain(*errs.values()))
-    counts = OrderedDict((k, dict(Counter(v))) for k, v in errs.items())
+    counts = OrderedDict((k, OrderedDict(sorted(Counter(v).items()))) for k, v in errs.items())
     return {
         "average" : avg,
         "counts" : counts
