@@ -232,7 +232,7 @@ def rank_error(df : MetricDF):
     errs = OrderedDict((lvl, []) for lvl in range(int(df.prediction_level.unique().max()) + 1))
     for x, y, lvl in zip(df.prediction, df.label, df.prediction_level):
         errs[lvl].append(rank_distance(x, y, child2parent))
-    avg = mean(chain(*errs.values()))
+    avg = mean(chain.from_iterable(errs.values()))
     counts = OrderedDict((k, OrderedDict(sorted(Counter(v).items()))) for k, v in errs.items())
     return {
         "average" : avg,
@@ -242,14 +242,30 @@ def rank_error(df : MetricDF):
 # Run all metrics in one call
 def evaluate_all_metrics(df : pd.DataFrame):
     with tqdm(METRICS.items(), desc="Computing metrics", unit="metric", leave=True, dynamic_ncols=True) as pbar:
-        retval = dict()
+        metric_values = dict()
         for metric, func in pbar:
             pbar.set_description_str(f'Computing {metric}')
             value = func(df)
             if value is None:
                 continue
-            retval[metric] = value
-    return retval
+            metric_values[metric] = value
+    # Verify that all simple metrics have the same keys (levels)
+    levels = set(tuple(v.keys()) for k, v in metric_values.items() if k in SIMPLE_METRICS)
+    if len(levels) > 0:
+        # If not, we find the metric with the most levels
+        max_levels = max(map(len, levels))
+        all_levels = [lvls for lvls in levels if len(lvls) == max_levels][0]
+        # Verify that keys of all simple metrics 
+        if not (set().union(*levels) == set(all_levels)):
+            raise RuntimeError('Inconsistent levels found:', levels)
+        # Insert NaN in the missing level metric values
+        for metric in SIMPLE_METRICS:
+            if metric not in metric_values:
+                continue
+            for level in all_levels:
+                if level not in metric_values[metric]:
+                    metric_values[metric] = OrderedDict((level, metric_values[metric].get(level, float('nan'))) for level in all_levels)
+    return metric_values
 
 def main(
         file : str | None=None,
