@@ -56,7 +56,7 @@ def recall(df : MetricDF):
     with skip_decorators():
         return cast(float, accuracy(df, remove_abstain=False))
 
-@metric(as_float=False)
+@metric(as_float=False, force_simple=True)
 def f1(
         df : MetricDF, 
         aggregate : bool=True, 
