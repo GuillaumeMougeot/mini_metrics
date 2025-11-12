@@ -345,7 +345,7 @@ def main(
         for lvl, thr in zip(lvls, thresholds):
             mask = df.level == lvl
             df.loc[mask, "threshold"] = thr
-        df = MetricDF(df.drop(["prediction_made", "correct"], axis=1), strict=False)
+        df = MetricDF(df.drop(["prediction_level", "prediction_made", "correct"], axis=1), strict=False)
     metrics = evaluate_all_metrics(df, per_class=per_class, verbose=verbose)
     if per_class:
         handle_per_class_metrics(metrics, output, verbose)
