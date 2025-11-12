@@ -1,16 +1,16 @@
 from collections.abc import Iterable
 from itertools import repeat
 from math import isfinite
-from typing import SupportsFloat
+from typing import SupportsFloat, cast
 
 import numpy as np
 import pandas as pd
 
 
 def to_float(x):
-    if isinstance(x, float):
+    if type(x) == float:
         return x
-    return float(pd.to_numeric(x))
+    return pd.to_numeric(x).item()
 
 def mean(
         X : Iterable[SupportsFloat], 

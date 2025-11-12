@@ -1,7 +1,8 @@
 import os
+import re
 from collections.abc import Callable, Iterable
 from itertools import cycle
-from typing import Concatenate, TypeVar, cast
+from typing import Any, Callable, Concatenate, Dict, TypeVar, cast
 
 import numpy as np
 import pandas as pd
@@ -9,6 +10,23 @@ from tqdm.auto import tqdm
 
 from mini_metrics.data import MetricDF
 
+R = TypeVar("R")
+_BAD_KW_RE = re.compile(r"unexpected keyword argument '([^']+)'")
+
+def retry_with_kwargs(fn: Callable[..., R], *args: Any, **kwargs: Any) -> R:
+    kw: Dict[str, Any] = dict(kwargs)
+    for _ in range(len(kw)):
+        try:
+            return fn(*args, **kw)
+        except TypeError as e:
+            m = _BAD_KW_RE.search(str(e))
+            if not m:
+                raise e
+            bad = m.group(1)
+            if bad not in kw:
+                raise e
+            kw.pop(bad)
+    return fn(*args)
 
 # Results and printing
 def pretty_string_dict(
@@ -123,6 +141,7 @@ def format_table(
     return "\n".join(lines)
 
 def unnest_class(metric_df_data : dict[str, list[dict[str, tuple[float, float]]]]):
+    # Invert nested class dictionaries
     scaffold = dict()
     for metric, level_values in metric_df_data.items():
         if metric == "level":
@@ -134,6 +153,10 @@ def unnest_class(metric_df_data : dict[str, list[dict[str, tuple[float, float]]]
                 scaffold[cls][metric] = value
                 scaffold[cls]["count"] = max(scaffold[cls].get("count", 0), count) 
                 scaffold[cls]["level"] = level
+    # Remove classes which don't have all metrics
+    max_metrics = max(map(len, scaffold.values()))
+    scaffold = {k : v for k, v in scaffold.items() if len(v) == max_metrics}
+    # Unfold classes
     out = dict()
     out["class"] = []
     for cls, metrics in scaffold.items():
@@ -144,7 +167,12 @@ def unnest_class(metric_df_data : dict[str, list[dict[str, tuple[float, float]]]
             out[k].append(v)
     return out
 
-def df_from_dict(metrics : dict, keys : list[str] | tuple[str, ...], per_class : bool=False):
+def df_from_dict(
+        metrics : dict, 
+        keys : list[str] | tuple[str, ...], 
+        per_class : bool=False,
+        verbose : int=1
+    ):
     """
     For creating a pandas dataframe from "simple" metrics.
 
@@ -172,9 +200,17 @@ def df_from_dict(metrics : dict, keys : list[str] | tuple[str, ...], per_class :
     df_data["level"] = levels
     id_cols = ["level"]
     if per_class:
+        if verbose >= 2:
+            print("BEFORE UNNESTING")
+            for k,v in df_data.items():
+                print(k, "==>", v)
         df_data = unnest_class(df_data)
         id_cols.append("class")
         id_cols.append("count")
+    if verbose >= 2:
+        print("DF DATA")
+        for k,v in df_data.items():
+            print(k, "==>", v)
     return (
         pd.DataFrame
         .from_dict(df_data)

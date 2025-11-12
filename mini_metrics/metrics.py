@@ -15,7 +15,7 @@ from tqdm.auto import tqdm
 
 from mini_metrics.data import MetricDF
 from mini_metrics.helpers import (df_from_dict, filter_df, format_table,
-                                  pretty_string_dict)
+                                  pretty_string_dict, retry_with_kwargs)
 from mini_metrics.register import (METRICS, SIMPLE_METRICS, average, metric,
                                    skip_decorators, variant)
 from mini_metrics.simple import mean, shannon_entropy, to_float
@@ -104,12 +104,12 @@ def theilU(df : MetricDF, _macro : bool=False):
         H_XY = (CS * eCS)[CS > 0].sum() / N
     else:
         H_XY = eCS[CS > 0].mean()
-    return cast(float, 1 - H_XY / eN)
+    return cast(float, 1 - H_XY.item() / eN.item())
 
 # register_macro(theilU)
 
 # Coverage
-@metric()
+@metric(chain=(average(macro=False),))
 def coverage(df : MetricDF):
     """Proportion of instances where the model made any prediction
       (i.e., had confidence ≥ threshold at some level).
@@ -117,7 +117,7 @@ def coverage(df : MetricDF):
     return df.prediction_made.mean()
 
 # Proportion of known labels
-@metric(filter=False)
+@metric(chain=(average(macro=False),), filter=False)
 def vocabulary_coverage(df : MetricDF):
     return df.known_label.mean()
 
@@ -240,21 +240,23 @@ def rank_error(df : MetricDF):
     }
 
 # Run all metrics in one call
-def evaluate_all_metrics(df : pd.DataFrame, per_class : bool=False, verbose : int=1):
+def evaluate_all_metrics(
+        df : pd.DataFrame, 
+        known_only : bool=False,
+        per_class : bool=False, 
+        verbose : int=1
+    ):
+    kwargs = {}
+    if known_only:
+        kwargs["filter"] = True
+    if per_class:
+        kwargs["aggregate"] = False
     with tqdm(METRICS.items(), desc="Computing metrics", unit="metric", leave=verbose > 1, dynamic_ncols=True, disable=verbose==0) as pbar:
         metric_values = dict()
         for metric, func in pbar:
             pbar.set_description_str(f'Computing {metric}')
             try:
-                if not per_class:
-                    value = func(df)
-                else:
-                    try:
-                        value = func(df, aggregate=False)
-                    except TypeError as e:
-                        if "got an unexpected keyword argument 'aggregate'" in str(e):
-                            continue
-                        raise
+                value = retry_with_kwargs(func, df, **kwargs)
             except Exception as e:
                 e.add_note(f'Error in {metric}: {func}')
                 raise e
@@ -279,6 +281,8 @@ def evaluate_all_metrics(df : pd.DataFrame, per_class : bool=False, verbose : in
                     metric_values[metric] = OrderedDict((level, metric_values[metric].get(level, float('nan'))) for level in all_levels)
     return metric_values
 
+PER_CLASS_EXCEPTIONS = ("theilU", )
+
 def handle_per_class_metrics(
         metrics : dict,
         output : str | None=None,
@@ -287,7 +291,8 @@ def handle_per_class_metrics(
     if verbose >= 2:
         print(pretty_string_dict(metrics))
         print()
-    df = df_from_dict(metrics, SIMPLE_METRICS, per_class=True)
+    K = [k for k in SIMPLE_METRICS if k not in PER_CLASS_EXCEPTIONS]
+    df = df_from_dict(metrics, K, per_class=True, verbose=verbose)
     if verbose >= 1:
         print("PER-CLASS METRIC TABLE")
         print(df)
@@ -306,6 +311,7 @@ def main(
         optimal : bool=False, 
         threshold : float | list[float] | None=None, 
         all : bool=False,
+        known_only : bool=False,
         label_filter : str | list[str] | None=None,
         subsample : int | None=None,
         per_class : bool=False,
@@ -346,7 +352,7 @@ def main(
             mask = df.level == lvl
             df.loc[mask, "threshold"] = thr
         df = MetricDF(df.drop(["prediction_level", "prediction_made", "correct"], axis=1), strict=False)
-    metrics = evaluate_all_metrics(df, per_class=per_class, verbose=verbose)
+    metrics = evaluate_all_metrics(df, known_only=known_only, per_class=per_class, verbose=verbose)
     if per_class:
         handle_per_class_metrics(metrics, output, verbose)
         return
@@ -371,7 +377,7 @@ def main(
             if verbose > 0:
                 print("Removed old", out_csv)
             os.remove(out_csv)
-        df_from_dict(metrics, SIMPLE_METRICS).to_csv(out_csv, index=False)
+        df_from_dict(metrics, SIMPLE_METRICS, verbose=verbose).to_csv(out_csv, index=False)
 
 def cli():
     parser = argparse.ArgumentParser()
@@ -381,6 +387,7 @@ def cli():
     parser.add_argument("-O", "--optimal", action="store_true", help="Use dynamically calculated optimal confidence threshold for metrics (overrides optional threshold column in file).")
     parser.add_argument("-t", "--threshold", type=float, nargs="+", default=None, required=False, help="Set the confidence threshold(s) manually (overrides optional threshold column in file).")
     parser.add_argument("-a", "--all", action="store_true", help="Print full metric results, otherwise only the metric table (default).")
+    parser.add_argument("-K", "--known_only", action="store_true", required=False, help="Compute statistics only for classes known by the model (default=False).")
     parser.add_argument("--label_filter", type=str, nargs="+", help="A list of or a file containg (level 0/species) labels to subset the results by.")
     parser.add_argument("--subsample", type=int, default=None, required=None, help="Subsample data (for faster debugging probably) before doing anything else.")
     parser.add_argument("--per_class", action="store_true", required=False, help="Compute per-class statistics")

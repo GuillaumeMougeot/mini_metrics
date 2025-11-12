@@ -71,8 +71,11 @@ def cast_float(func: MetricFn[P, R]) -> MetricFn[P, float]:
 
 @compatible
 def filter_known(func: MetricFn[P, R]) -> MetricFn[P, R]:
-    def wrapper(df: MetricDF, /, *args: P.args, **kwargs: P.kwargs) -> R:
-        return func(df[df.known_label], *args, **kwargs)
+    def wrapper(df: MetricDF, /, *args: P.args, filter : bool=False, **kwargs: P.kwargs) -> R:
+        if filter:
+            return func(df[df.known_label], *args, **kwargs)
+        else:
+            return func(df, *args, **kwargs)
     return wrapper
 
 @compatible
