@@ -56,7 +56,7 @@ def recall(df : MetricDF):
     with skip_decorators():
         return cast(float, accuracy(df, remove_abstain=False))
 
-@metric()
+@metric(as_float=False)
 def f1(
         df : MetricDF, 
         aggregate : bool=True, 
@@ -240,17 +240,29 @@ def rank_error(df : MetricDF):
     }
 
 # Run all metrics in one call
-def evaluate_all_metrics(df : pd.DataFrame):
-    with tqdm(METRICS.items(), desc="Computing metrics", unit="metric", leave=True, dynamic_ncols=True) as pbar:
+def evaluate_all_metrics(df : pd.DataFrame, per_class : bool=False, verbose : int=1):
+    with tqdm(METRICS.items(), desc="Computing metrics", unit="metric", leave=verbose > 1, dynamic_ncols=True, disable=verbose==0) as pbar:
         metric_values = dict()
         for metric, func in pbar:
             pbar.set_description_str(f'Computing {metric}')
-            value = func(df)
+            try:
+                if not per_class:
+                    value = func(df)
+                else:
+                    try:
+                        value = func(df, aggregate=False)
+                    except TypeError as e:
+                        if "got an unexpected keyword argument 'aggregate'" in str(e):
+                            continue
+                        raise
+            except Exception as e:
+                e.add_note(f'Error in {metric}: {func}')
+                raise e
             if value is None:
                 continue
             metric_values[metric] = value
     # Verify that all simple metrics have the same keys (levels)
-    levels = set(tuple(v.keys()) for k, v in metric_values.items() if k in SIMPLE_METRICS)
+    levels = set(tuple(v.keys()) if isinstance(k, dict) else tuple() for k, v in metric_values.items() if k in SIMPLE_METRICS)
     if len(levels) > 0:
         # If not, we find the metric with the most levels
         max_levels = max(map(len, levels))
@@ -267,15 +279,37 @@ def evaluate_all_metrics(df : pd.DataFrame):
                     metric_values[metric] = OrderedDict((level, metric_values[metric].get(level, float('nan'))) for level in all_levels)
     return metric_values
 
+def handle_per_class_metrics(
+        metrics : dict,
+        output : str | None=None,
+        verbose : int=1
+    ):
+    if verbose >= 2:
+        print(pretty_string_dict(metrics))
+        print()
+    df = df_from_dict(metrics, SIMPLE_METRICS, per_class=True)
+    if verbose >= 1:
+        print("PER-CLASS METRIC TABLE")
+        print(df)
+    if output:
+        out_csv = f'{output}.csv'
+        if os.path.exists(out_csv):
+            if verbose > 0:
+                print("Removed old", out_csv)
+            os.remove(out_csv)
+        df.to_csv(out_csv, index=False)
+
 def main(
         file : str | None=None,
         output : str | None=None,
         combinations : str | None=None,
-        threshold : float | list[float] | None=None, 
         optimal : bool=False, 
+        threshold : float | list[float] | None=None, 
         all : bool=False,
+        label_filter : str | list[str] | None=None,
         subsample : int | None=None,
-        label_filter : str | list[str] | None=None
+        per_class : bool=False,
+        verbose : int=1
     ):
     if threshold is not None and optimal:
         raise ValueError(
@@ -312,23 +346,30 @@ def main(
             mask = df.level == lvl
             df.loc[mask, "threshold"] = thr
         df = MetricDF(df.drop(["prediction_made", "correct"], axis=1), strict=False)
-    metrics = evaluate_all_metrics(df)
+    metrics = evaluate_all_metrics(df, per_class=per_class, verbose=verbose)
+    if per_class:
+        handle_per_class_metrics(metrics, output, verbose)
+        return
     if all:
-        print(pretty_string_dict(metrics))
-        print()
+        if verbose > 0:
+            print(pretty_string_dict(metrics))
+            print()
         if output:
             out_json = f'{output}.json'
             if os.path.exists(out_json):
-                print("Removed old", out_json)
+                if verbose > 0:
+                    print("Removed old", out_json)
                 os.remove(out_json)
             with open(out_json, "w", encoding="utf8", newline=os.linesep) as f:
                 json.dump(metrics, f)
-    print("METRIC TABLE")
-    print(format_table(metrics, keys=SIMPLE_METRICS))
+    if verbose > 0:
+        print("METRIC TABLE")
+        print(format_table(metrics, keys=SIMPLE_METRICS))
     if output:
         out_csv = f'{output}.csv'
         if os.path.exists(out_csv):
-            print("Removed old", out_csv)
+            if verbose > 0:
+                print("Removed old", out_csv)
             os.remove(out_csv)
         df_from_dict(metrics, SIMPLE_METRICS).to_csv(out_csv, index=False)
 
@@ -339,9 +380,11 @@ def cli():
     parser.add_argument("-c", "--combinations", type=str, default=None, required=False, help="Path to a CSV file with columns for each hierarchy level, where each row is a leaf-species and it's parents.")
     parser.add_argument("-O", "--optimal", action="store_true", help="Use dynamically calculated optimal confidence threshold for metrics (overrides optional threshold column in file).")
     parser.add_argument("-t", "--threshold", type=float, nargs="+", default=None, required=False, help="Set the confidence threshold(s) manually (overrides optional threshold column in file).")
-    parser.add_argument("--label_filter", type=str, nargs="+", help="A list of or a file containg (level 0/species) labels to subset the results by.")
     parser.add_argument("-a", "--all", action="store_true", help="Print full metric results, otherwise only the metric table (default).")
+    parser.add_argument("--label_filter", type=str, nargs="+", help="A list of or a file containg (level 0/species) labels to subset the results by.")
     parser.add_argument("--subsample", type=int, default=None, required=None, help="Subsample data (for faster debugging probably) before doing anything else.")
+    parser.add_argument("--per_class", action="store_true", required=False, help="Compute per-class statistics")
+    parser.add_argument("-v", "--verbose", type=int, default=1, required=False, help="Verbosity - 0 (silent), default = 1 (info & summary), 2 (debug - not implemented!)")
     args = parser.parse_args()
     main(**vars(args))
 

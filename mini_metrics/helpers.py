@@ -1,7 +1,7 @@
 import os
 from collections.abc import Callable, Iterable
 from itertools import cycle
-from typing import Concatenate, TypeVar
+from typing import Concatenate, TypeVar, cast
 
 import numpy as np
 import pandas as pd
@@ -122,7 +122,29 @@ def format_table(
         lines = [line.removeprefix(rowname) for line, rowname in zip(lines, cycle(rownames))]
     return "\n".join(lines)
 
-def df_from_dict(metrics : dict, keys : list[str] | tuple[str, ...]):
+def unnest_class(metric_df_data : dict[str, list[dict[str, tuple[float, float]]]]):
+    scaffold = dict()
+    for metric, level_values in metric_df_data.items():
+        if metric == "level":
+            continue
+        for level, class_values in enumerate(level_values):
+            for cls, (value, count) in class_values.items():
+                if cls not in scaffold:
+                    scaffold[cls] = dict()
+                scaffold[cls][metric] = value
+                scaffold[cls]["count"] = max(scaffold[cls].get("count", 0), count) 
+                scaffold[cls]["level"] = level
+    out = dict()
+    out["class"] = []
+    for cls, metrics in scaffold.items():
+        out["class"].append(cls)
+        for k, v in metrics.items():
+            if k not in out:
+                out[k] = []
+            out[k].append(v)
+    return out
+
+def df_from_dict(metrics : dict, keys : list[str] | tuple[str, ...], per_class : bool=False):
     """
     For creating a pandas dataframe from "simple" metrics.
 
@@ -134,19 +156,29 @@ def df_from_dict(metrics : dict, keys : list[str] | tuple[str, ...]):
     Returns:
         A pandas dataframe with columns `("level", *keys)`.
     """
-    if isinstance(list(metrics.values())[0], (float, int)):
-        ds : dict[str, dict[int, float]] = {k : {0 : float(v)} for k, v in metrics.items() if k in keys}
+    if not per_class:
+        no_levels = isinstance(list(metrics.values())[0], (float, int))
+    else:
+        no_levels = isinstance(list(list(metrics.values())[0].values())[0], (tuple, list))
+    if no_levels:
+        ds : dict[str, dict[int, float]] = {k : {0 : float(v) if not per_class else {cls : tuple(map(float, cls_v)) for cls, cls_v in v.items()}} for k, v in metrics.items() if k in keys}
+        levels = [0]
     else:
         ds : dict[str, dict[int, float]] = {k : v for k, v in metrics.items() if k in keys}
-    levels = sorted(list(list(ds.values())[0].keys()))
+        levels = sorted(list(list(ds.values())[0].keys()))
     df_data = {
         k : [v[lvl] for lvl in levels] for k, v in ds.items()
     }
     df_data["level"] = levels
+    id_cols = ["level"]
+    if per_class:
+        df_data = unnest_class(df_data)
+        id_cols.append("class")
+        id_cols.append("count")
     return (
         pd.DataFrame
         .from_dict(df_data)
-        .reindex(labels=["level", *keys], axis="columns")
+        .reindex(labels=[*id_cols, *keys], axis="columns")
     )
 
 R = TypeVar("R")

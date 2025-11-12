@@ -109,7 +109,7 @@ def average(
             if len(grps) <= 1:
                 v = func(df, *args, **kwargs)
                 w = float(len(df) if not _macro else 1.0)
-                return v if aggregate else {grps[0] if grps else None: (v, w)}  # type: ignore[index]
+                return v if aggregate else {grps[0] if grps else None: (float(v), w)}  # type: ignore[index]
             idxs = df.groupby(by, sort=False, observed=True).indices
             empty = np.empty((0,), dtype=np.int64)
             values = group_map(
@@ -128,7 +128,7 @@ def average(
             )
             if aggregate:
                 return mean(values, W=weights, skip_nonfinite=skip_nonfinite)
-            return {g: (v, w) for g, v, w in zip(grps, values, weights)}
+            return {g: (float(v), float(w)) for g, v, w in zip(grps, values, weights)}
         return wrapper
     return decorator
 
