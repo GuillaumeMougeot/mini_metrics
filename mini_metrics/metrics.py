@@ -167,26 +167,26 @@ def optimal_confidence_threshold(df : MetricDF) -> float:
 
 register_macro(optimal_confidence_threshold)
 
-@metric(per_level=False, filter=False)
-def hierarchical_metric(
-        df : MetricDF, 
-        rewards : pd.Series[float] | None=None, 
-        penalties : pd.Series[float] | None=None
-    ):
-    if rewards is None:
-        # rewards = lambda level: (3-level)/6
-        rewards = pd.Series([1/2 - x/6 for x in range(3)]) # [1/2, 1/3, 1/6]
-    if penalties is None:
-        # penalties = lambda level: (-1-level)/6)
-        penalties = pd.Series([-(1+x)/6 for x in range(3)]) # [-1/6, -1/3, -!/2]
-    m = (df.confidence > df.threshold).astype(float) * (
-        np.where(
-            df.correct,
-            rewards[df.level], 
-            penalties[df.level]
-        )
-    )
-    return m.sum() / df.instance_id.nunique()
+# @metric(per_level=False, filter=False)
+# def hierarchical_metric(
+#         df : MetricDF, 
+#         rewards : pd.Series[float] | None=None, 
+#         penalties : pd.Series[float] | None=None
+#     ):
+#     if rewards is None:
+#         # rewards = lambda level: (3-level)/6
+#         rewards = pd.Series([1/2 - x/6 for x in range(3)]) # [1/2, 1/3, 1/6]
+#     if penalties is None:
+#         # penalties = lambda level: (-1-level)/6)
+#         penalties = pd.Series([-(1+x)/6 for x in range(3)]) # [-1/6, -1/3, -!/2]
+#     m = (df.confidence > df.threshold).astype(float) * (
+#         np.where(
+#             df.correct,
+#             rewards[df.level], 
+#             penalties[df.level]
+#         )
+#     )
+#     return m.sum() / df.instance_id.nunique()
 
 def class_path(cls : str, c2p : dict[str, str]):
     path = [cls]
