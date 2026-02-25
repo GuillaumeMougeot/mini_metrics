@@ -393,7 +393,10 @@ def cli():
     parser.add_argument("--per_class", action="store_true", required=False, help="Compute per-class statistics")
     parser.add_argument("-v", "--verbose", type=int, default=1, required=False, help="Verbosity - 0 (silent), default = 1 (info & summary), 2 (debug - not implemented!)")
     args = parser.parse_args()
-    main(**vars(args))
+    return vars(args)
+
+def run():
+    main(**cli())
 
 if __name__=='__main__':
-    cli()
+    run()

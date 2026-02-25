@@ -34,6 +34,9 @@ classifiers = [
 Repository = "https://github.com/GuillaumeMougeot/mini_metrics"
 "Bug Tracker" = "https://github.com/GuillaumeMougeot/mini_metrics/issues"
 
+[project.scripts]
+mm_metrics = "mini_metrics.metrics:run"
+
 [tool.ruff]
 target-version = "py312"
 
