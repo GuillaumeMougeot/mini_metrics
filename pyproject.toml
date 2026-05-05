@@ -1,15 +1,12 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "mini_metrics"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
   "numpy",
   "pandas",
   "matplotlib",
-  "scikit-learn"
+  "scikit-learn",
+  "tqdm>=4.67.3",
 ]
 requires-python = ">=3.12"
 authors = [
@@ -44,8 +41,24 @@ target-version = "py312"
 # Enable core checks, imports, pyupgrade, and pydocstyle
 select = ["E", "F", "I", "UP", "D"]
 # Prefer multi-line docstring summaries (D213); ignore D200 (summary must be on first line)
-ignore = ["D200"]
+ignore = ["D200", "D100"]
 preview = true
+
+[tool.ruff.lint.per-file-ignores]
+# Apply these ignores ONLY to the tests directory
+"tests/**/*.py" = [
+    "S101",     # flake8-bandit: Use of `assert` detected (Pytest relies on this!)
+    "PLR2004",  # pylint: Magic value used in comparison (Tests are full of hardcoded values)
+    "D",        # pydocstyle: Missing docstrings (Test names should be descriptive enough)
+    "ANN",      # flake8-annotations: Missing type annotations (Overkill for test files)
+    "SLF001",   # flake8-self: Private member accessed (Often needed to test internal state)
+    "ARG",      # flake8-unused-arguments: Unused function args (Common with fixtures and mocks)
+    "FBT",      # flake8-boolean-trap: Boolean positional arg (Common in parametrized tests)
+    "S105",     # flake8-bandit: Hardcoded password (Dummy credentials are fine in tests)
+    "S106",     # flake8-bandit: Hardcoded password in func call
+    "PLR0915",  # pylint: Too many statements (Test functions naturally get a bit long)
+    "PLR0913",  # pylint: Too many arguments (Fixtures can pile up quickly)
+]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -57,3 +70,21 @@ pre-summary-newline = true
 # Leave lines unwrapped; let editors/linters handle wrapping
 wrap-summaries = 0
 wrap-descriptions = 0
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.5",
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0"
+]
+
+[build-system]
+requires = ["uv_build>=0.10.7,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

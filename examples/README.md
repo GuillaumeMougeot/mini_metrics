@@ -1,11 +1,15 @@
+# Examples
+
 All files in this folder should be zip archives with a single contained comma-delimited CSV.
 
 On Linux these can be created with:
-```sh
+
+```bash
 zip [name].csv.zip [name].csv
 ```
 
 To run an example simply run:
-```sh
-python -m mini_metrics.metrics -f examples/[file].csv.zip
+
+```bash
+uv run mm_metrics -f examples/[file].csv.zip
 ```

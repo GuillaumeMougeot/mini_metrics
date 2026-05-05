@@ -217,7 +217,7 @@ class MetricDF(pd.DataFrame):
                         f'{self.dtypes[col]}, expected {dtype}'
                     )
                 else:
-                    self[col] = self[col].astype(dtype, copy=False)
+                    self[col] = self[col].astype(dtype)
             
             # Iterate here to allow 
             expected_loc += 1
