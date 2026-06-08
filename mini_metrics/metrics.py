@@ -24,28 +24,23 @@ from mini_metrics.helpers import (
 from mini_metrics.register import (
     METRICS,
     SIMPLE_METRICS,
+    AveragedMetric,
+    MacroMetric,
     Metric,
-    average,
+    MicroMetric,
     skip_decorators,
-    variant,
 )
 from mini_metrics.simple import mean, shannon_entropy, to_float
 
-register_micro = variant("micro")
-register_macro = variant("macro")
-
 
 # Accuracy
-class Accuracy(Metric):
-    chain = (average(),)
+class Accuracy(AveragedMetric):
+    """Micro-accuracy of a dataframe."""
+
+    def __init__(self, name: str):
+        super().__init__(name)
 
     def compute(self, df: MetricDF, remove_abstain: bool = True):
-        """Micro-accuracy of a dataframe.
-
-        Args:
-            df: Data frame source.
-            remove_abstain: Compute accuracy for only rows where prediction_made is True.
-        """
         corr = df.correct
         if remove_abstain:
             corr = corr[df.prediction_made]
@@ -54,41 +49,52 @@ class Accuracy(Metric):
         return (corr == 1).mean()
 
 
-accuracy = Accuracy()
+accuracy = Accuracy("accuracy")
 
 
-class Precision(Metric):
-    chain = (average(by="prediction"),)
+# Precision
+class Precision(AveragedMetric):
+    """Calculated as macro-average over all present label classes."""
+
+    def __init__(self, name: str):
+        super().__init__(name, by="prediction")
 
     def compute(self, df: MetricDF):
-        """Calculated as macro-average over all present label classes."""
         with skip_decorators():
             return cast(float, accuracy(df))
 
 
-precision = Precision()
+precision = Precision("precision")
 
 
-class Recall(Metric):
-    chain = (average(),)
+# Recall
+class Recall(AveragedMetric):
+    """Calculated as macro-average over all present label classes."""
+
+    def __init__(self, name: str):
+        super().__init__(name)
 
     def compute(self, df: MetricDF):
-        """Calculated as macro-average over all present label classes."""
         with skip_decorators():
             return cast(float, accuracy(df, remove_abstain=False))
 
 
-recall = Recall()
+recall = Recall("recall")
 
 
+# F1
 class F1(Metric):
-    as_float = False
+    """Calculated as macro-average over all present label classes."""
+
+    should_cast_float = False
     force_simple = True
+
+    def __init__(self, name: str):
+        super().__init__(name, is_simple=True)
 
     def compute(
         self, df: MetricDF, aggregate: bool = True, _macro: bool = True
     ) -> float | dict[str, tuple[float, float]]:
-        """Calculated as macro-average over all present label classes."""
         Ps, Rs = (
             precision(df, aggregate=False, _macro=_macro),
             recall(df, aggregate=False, _macro=_macro),
@@ -112,17 +118,22 @@ class F1(Metric):
         return {cls: (f1, w) for cls, w, f1 in zip(clss, ws, f1s)}
 
 
-f1 = F1()
+f1 = F1("f1")
 
-
-register_micro(accuracy)
-register_micro(precision)
-register_micro(recall)
-register_micro(f1)
+# Explicit variant registrations
+micro_accuracy = MicroMetric(accuracy)
+micro_precision = MicroMetric(precision)
+micro_recall = MicroMetric(recall)
+micro_f1 = MicroMetric(f1)
 
 
 # Theil's U / Uncertainty coefficient
 class TheilU(Metric):
+    """Theil's U metric."""
+
+    def __init__(self, name: str):
+        super().__init__(name)
+
     def compute(self, df: MetricDF, _macro: bool = False):
         C = confusion_matrix(df.label, df.prediction).astype(float)
         N, CS, RS = [C.sum(a) for a in [None, 0, 1]]
@@ -139,52 +150,64 @@ class TheilU(Metric):
         return cast(float, 1 - H_XY.item() / eN.item())
 
 
-theilU = TheilU()
-
-# register_macro(theilU)
+theilU = TheilU("theilU")
 
 
 # Coverage
-class Coverage(Metric):
-    chain = (average(macro=False),)
+class Coverage(AveragedMetric):
+    """Proportion of instances where the model made any prediction."""
+
+    def __init__(self, name: str):
+        super().__init__(name, macro=False)
 
     def compute(self, df: MetricDF):
-        """Proportion of instances where the model made any prediction
-        (i.e., had confidence ≥ threshold at some level).
-        """
         return df.prediction_made.mean()
 
 
-coverage = Coverage()
+coverage = Coverage("coverage")
 
 
 # Proportion of known labels
-class VocabularyCoverage(Metric):
-    chain = (average(macro=False),)
-    filter = False
+class VocabularyCoverage(AveragedMetric):
+    """Proportion of known labels."""
+
+    should_filter = False
+
+    def __init__(self, name: str):
+        super().__init__(name, macro=False)
 
     def compute(self, df: MetricDF):
         return df.known_label.mean()
 
 
-vocabulary_coverage = VocabularyCoverage()
+vocabulary_coverage = VocabularyCoverage("vocabulary_coverage")
 
 
 # Average Prediction Level
 class AveragePredictionLevel(Metric):
-    per_level = False
-    filter = False
+    """Average Prediction Level."""
+
+    is_per_level = False
+    should_filter = False
+
+    def __init__(self, name: str):
+        super().__init__(name)
 
     def compute(self, df: MetricDF):
         return df.prediction_level.mean()
 
 
-average_prediction_level = AveragePredictionLevel()
+average_prediction_level = AveragePredictionLevel("average_prediction_level")
 
 
 # Mean Confidence of Correct vs Incorrect Predictions
 class ConfidenceStats(Metric):
-    as_float = False
+    """Mean Confidence of Correct vs Incorrect Predictions."""
+
+    should_cast_float = False
+
+    def __init__(self, name: str):
+        super().__init__(name)
 
     def compute(self, df: MetricDF):
         outcomes = {"incorrect": -1, "abstain": 0, "correct": 1}
@@ -194,28 +217,21 @@ class ConfidenceStats(Metric):
         }
 
 
-confidence_stats = ConfidenceStats()
+confidence_stats = ConfidenceStats("confidence_stats")
 
 
-class OptimalConfidenceThreshold(Metric):
-    chain = (average(macro=False),)
+# Optimal Confidence Threshold
+class OptimalConfidenceThreshold(AveragedMetric):
+    """Optimal confidence threshold computed using Youden index."""
+
+    def __init__(self, name: str):
+        super().__init__(name, macro=False)
 
     def compute(self, df: MetricDF) -> float:
-        """Computes the confidence threshold using the
-        Youden index (or Kolmogorov-Smirnov statistic),
-        i.e. the threshold where the empirical CDF of
-        the incorrect confidences exceeds that of the
-        correct confidences by the largest margin.
-
-        This corresponds to finding the threshold :math:`t` that maximizes:
-            :math:`P(correct ∧ conf >= t) + P(incorrect ∧ conf < t)`
-        """
         conf = df.confidence.to_numpy()
         corr = (df.label == df.prediction).to_numpy()
-        # If all predictions are correct, default to the minimum confidence
         if corr.all():
             return conf.min()
-        # If all predictions are incorrect, default to the maximum confidence
         if ~corr.any():
             return conf.max()
         z = np.unique(conf)
@@ -227,33 +243,15 @@ class OptimalConfidenceThreshold(Metric):
         return (z[k] + z[min(k + 1, len(z) - 1)]) / 2
 
 
-optimal_confidence_threshold = OptimalConfidenceThreshold()
+optimal_confidence_threshold = OptimalConfidenceThreshold(
+    "optimal_confidence_threshold"
+)
+
+# Explicit variant registrations
+macro_optimal_confidence_threshold = MacroMetric(optimal_confidence_threshold)
 
 
-register_macro(optimal_confidence_threshold)
-
-# @metric(per_level=False, filter=False)
-# def hierarchical_metric(
-#         df : MetricDF,
-#         rewards : pd.Series[float] | None=None,
-#         penalties : pd.Series[float] | None=None
-#     ):
-#     if rewards is None:
-#         # rewards = lambda level: (3-level)/6
-#         rewards = pd.Series([1/2 - x/6 for x in range(3)]) # [1/2, 1/3, 1/6]
-#     if penalties is None:
-#         # penalties = lambda level: (-1-level)/6)
-#         penalties = pd.Series([-(1+x)/6 for x in range(3)]) # [-1/6, -1/3, -!/2]
-#     m = (df.confidence > df.threshold).astype(float) * (
-#         np.where(
-#             df.correct,
-#             rewards[df.level],
-#             penalties[df.level]
-#         )
-#     )
-#     return m.sum() / df.instance_id.nunique()
-
-
+# Hierarchy Helpers
 def class_path(cls: str, c2p: dict[str, str]):
     path = [cls]
     while path[-1] in c2p:
@@ -281,23 +279,17 @@ def child2parent_from_combinations(combinations: dict[str, tuple[str, ...]]):
     return child2parent
 
 
+# Rank Error
 class RankError(Metric):
-    per_level = False
-    as_float = False
+    """Average distance to last common ancestor."""
+
+    is_per_level = False
+    should_cast_float = False
+
+    def __init__(self, name: str):
+        super().__init__(name)
 
     def compute(self, df: MetricDF):
-        """Average distance to last common ancestor.
-
-        For a prediction, x, and label, y, we find their current
-        hierarchy level, l_0, and the hierarchy level of their
-        last common ancestor, LCA:
-        ```
-        l_0 = min(level(x), level(y))
-        l_LCA = max(i if (p^i_x == p^i_y) for i in [-1, 0, ... l0 - 1])
-        rank_error = l_0 - l_LCA
-        ```
-        here `p^i_x` gives the parent of `x` at level `i` (`p^{-1}_x` is always the root).
-        """
         if (combinations := getattr(df, "_class_combinations", None)) is None:
             return None
         child2parent = child2parent_from_combinations(combinations)
@@ -314,7 +306,7 @@ class RankError(Metric):
         return {"average": avg, "counts": counts}
 
 
-rank_error = RankError()
+rank_error = RankError("rank_error")
 
 
 # Run all metrics in one call
@@ -338,19 +330,19 @@ def evaluate_all_metrics(
         disable=verbose == 0,
     ) as pbar:
         metric_values = dict()
-        for metric, func in pbar:
-            pbar.set_description_str(f"Computing {metric}")
+        for metric_name, metric_obj in pbar:
+            pbar.set_description_str(f"Computing {metric_name}")
             try:
-                value = retry_with_kwargs(func, df, **kwargs)
+                value = retry_with_kwargs(metric_obj, df, **kwargs)
             except Exception as e:
-                e.add_note(f"Error in {metric}: {func}")
+                e.add_note(f"Error in {metric_name}: {metric_obj}")
                 raise e
             if value is None:
                 continue
-            metric_values[metric] = value
+            metric_values[metric_name] = value
     # Verify that all simple metrics have the same keys (levels)
     levels = set(
-        tuple(v.keys()) if isinstance(k, dict) else tuple()
+        tuple(v.keys()) if isinstance(v, dict) else tuple()
         for k, v in metric_values.items()
         if k in SIMPLE_METRICS
     )
@@ -362,15 +354,20 @@ def evaluate_all_metrics(
         if not (set().union(*levels) == set(all_levels)):
             raise RuntimeError("Inconsistent levels found:", levels)
         # Insert NaN in the missing level metric values
-        for metric in SIMPLE_METRICS:
-            if metric not in metric_values:
+        for metric_name in SIMPLE_METRICS:
+            if metric_name not in metric_values:
                 continue
-            for level in all_levels:
-                if level not in metric_values[metric]:
-                    metric_values[metric] = OrderedDict(
-                        (level, metric_values[metric].get(level, float("nan")))
-                        for level in all_levels
-                    )
+            # If the value is a dictionary (per-level results)
+            if isinstance(metric_values[metric_name], dict):
+                for level in all_levels:
+                    if level not in metric_values[metric_name]:
+                        metric_values[metric_name] = OrderedDict(
+                            (
+                                level,
+                                metric_values[metric_name].get(level, float("nan")),
+                            )
+                            for level in all_levels
+                        )
     return metric_values
 
 
