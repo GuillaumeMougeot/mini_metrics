@@ -1,6 +1,7 @@
 import contextvars
 import functools
 import inspect
+import re
 import sys
 from collections.abc import Callable, Iterable
 from contextlib import contextmanager
@@ -337,3 +338,61 @@ def variant(
         return out
 
     return wrapper
+
+
+class Metric:
+    """Base class for all metrics in mini_metrics."""
+
+    per_level: bool = True
+    filter: bool = True
+    as_float: bool = True
+    force_simple: bool = False
+    chain: tuple = ()
+
+    def __init__(self, name: str | None = None):
+        cls_name = self.__class__.__name__
+        if name is not None:
+            self._name = name
+        else:
+            if cls_name == "TheilU":
+                self._name = "theilU"
+            elif cls_name == "F1":
+                self._name = "f1"
+            else:
+                s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", cls_name)
+                self._name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
+
+        self.__name__ = self._name
+        self.__qualname__ = f"{self.__class__.__module__}.{self.__class__.__name__}"
+        self.__module__ = self.__class__.__module__
+        self.__doc__ = self.compute.__doc__
+
+        # Build pipeline using the same sequence as decorator factory
+        f = self.compute
+        if self.as_float:
+            f = cast_float(f)
+        if self.chain:
+            f = _compose(self.chain)(f)
+        if self.per_level:
+            f = compute_per_level(f)
+        if self.filter:
+            f = filter_known(f)
+
+        self._pipeline = f
+
+        # Preserve signature and annotations
+        try:
+            self.__signature__ = inspect.signature(self.compute)
+        except (TypeError, ValueError):
+            pass
+        self.__annotations__ = getattr(self.compute, "__annotations__", {})
+
+        # Register the metric
+        simple = (self.per_level and self.as_float) or self.force_simple
+        _register_metric(self, simple=simple)
+
+    def compute(self, df: MetricDF, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError("Subclasses must implement compute().")
+
+    def __call__(self, df: MetricDF, *args: Any, **kwargs: Any) -> Any:
+        return self._pipeline(df, *args, **kwargs)
