@@ -14,20 +14,31 @@ from sklearn.metrics import confusion_matrix
 from tqdm.auto import tqdm
 
 from mini_metrics.data import MetricDF
-from mini_metrics.helpers import (df_from_dict, filter_df, format_table,
-                                  pretty_string_dict, retry_with_kwargs)
-from mini_metrics.register import (METRICS, SIMPLE_METRICS, average, metric,
-                                   skip_decorators, variant)
+from mini_metrics.helpers import (
+    df_from_dict,
+    filter_df,
+    format_table,
+    pretty_string_dict,
+    retry_with_kwargs,
+)
+from mini_metrics.register import (
+    METRICS,
+    SIMPLE_METRICS,
+    average,
+    metric,
+    skip_decorators,
+    variant,
+)
 from mini_metrics.simple import mean, shannon_entropy, to_float
 
 register_micro = variant("micro")
 register_macro = variant("macro")
 
+
 # Accuracy
 @metric(chain=(average(),))
-def accuracy(df : MetricDF, remove_abstain : bool=True):
-    """
-    Micro-accuracy of a dataframe.
+def accuracy(df: MetricDF, remove_abstain: bool = True):
+    """Micro-accuracy of a dataframe.
 
     Args:
         df: Data frame source.
@@ -40,32 +51,30 @@ def accuracy(df : MetricDF, remove_abstain : bool=True):
         return 0.0
     return (corr == 1).mean()
 
+
 @metric(chain=(average(by="prediction"),))
-def precision(df : MetricDF):
-    """
-    Calculated as macro-average over all present label classes.
-    """
+def precision(df: MetricDF):
+    """Calculated as macro-average over all present label classes."""
     with skip_decorators():
         return cast(float, accuracy(df))
 
+
 @metric(chain=(average(),))
-def recall(df : MetricDF):
-    """
-    Calculated as macro-average over all present label classes.
-    """
+def recall(df: MetricDF):
+    """Calculated as macro-average over all present label classes."""
     with skip_decorators():
         return cast(float, accuracy(df, remove_abstain=False))
 
+
 @metric(as_float=False, force_simple=True)
 def f1(
-        df : MetricDF, 
-        aggregate : bool=True, 
-        _macro : bool=True
-    ) -> float | dict[str, tuple[float, float]]:
-    """
-    Calculated as macro-average over all present label classes.
-    """
-    Ps, Rs = precision(df, aggregate=False, _macro=_macro), recall(df, aggregate=False, _macro=_macro)
+    df: MetricDF, aggregate: bool = True, _macro: bool = True
+) -> float | dict[str, tuple[float, float]]:
+    """Calculated as macro-average over all present label classes."""
+    Ps, Rs = (
+        precision(df, aggregate=False, _macro=_macro),
+        recall(df, aggregate=False, _macro=_macro),
+    )
     clss = []
     ws = []
     f1s = []
@@ -74,7 +83,7 @@ def f1(
         clss.append(cls)
         ws.append(1 if _macro else Ps[cls][1])
         if not isfinite(P) or not isfinite(R):
-            f1 = float('nan')
+            f1 = float("nan")
         if P == 0 or R == 0:
             f1 = 0.0
         else:
@@ -82,23 +91,25 @@ def f1(
         f1s.append(f1)
     if aggregate:
         return mean(f1s, ws)
-    return {cls : (f1, w) for cls, w, f1 in zip(clss, ws, f1s)}
+    return {cls: (f1, w) for cls, w, f1 in zip(clss, ws, f1s)}
+
 
 register_micro(accuracy)
 register_micro(precision)
 register_micro(recall)
 register_micro(f1)
 
+
 # Theil's U / Uncertainty coefficient
 @metric()
-def theilU(df : MetricDF, _macro : bool=False):
+def theilU(df: MetricDF, _macro: bool = False):
     C = confusion_matrix(df.label, df.prediction).astype(float)
-    N, CS, RS = [C.sum(a) for a in [None, 0, 1]] 
+    N, CS, RS = [C.sum(a) for a in [None, 0, 1]]
     if N <= 1:
-        return float('nan')
+        return float("nan")
     eN = np.clip(shannon_entropy(RS), 0.0, np.inf)
     if eN <= 0.0:
-        return float('nan')
+        return float("nan")
     eCS = np.fromiter(map(shannon_entropy, C.T), float)
     if not _macro:
         H_XY = (CS * eCS)[CS > 0].sum() / N
@@ -106,44 +117,44 @@ def theilU(df : MetricDF, _macro : bool=False):
         H_XY = eCS[CS > 0].mean()
     return cast(float, 1 - H_XY.item() / eN.item())
 
+
 # register_macro(theilU)
+
 
 # Coverage
 @metric(chain=(average(macro=False),))
-def coverage(df : MetricDF):
+def coverage(df: MetricDF):
     """Proportion of instances where the model made any prediction
-      (i.e., had confidence ≥ threshold at some level).
+    (i.e., had confidence ≥ threshold at some level).
     """
     return df.prediction_made.mean()
 
+
 # Proportion of known labels
 @metric(chain=(average(macro=False),), filter=False)
-def vocabulary_coverage(df : MetricDF):
+def vocabulary_coverage(df: MetricDF):
     return df.known_label.mean()
+
 
 # Average Prediction Level
 @metric(per_level=False, filter=False)
-def average_prediction_level(df : MetricDF):
+def average_prediction_level(df: MetricDF):
     return df.prediction_level.mean()
+
 
 # Mean Confidence of Correct vs Incorrect Predictions
 @metric(as_float=False)
-def confidence_stats(df : MetricDF):
-    outcomes = {
-        "incorrect" : -1,
-        "abstain" : 0,
-        "correct" : 1
-    }
+def confidence_stats(df: MetricDF):
+    outcomes = {"incorrect": -1, "abstain": 0, "correct": 1}
     return {
-        k : to_float(df[df.correct == v].confidence.mean())
-        for k, v in outcomes.items()
+        k: to_float(df[df.correct == v].confidence.mean()) for k, v in outcomes.items()
     }
 
+
 @metric(chain=(average(macro=False),))
-def optimal_confidence_threshold(df : MetricDF) -> float:
-    """
-    Computes the confidence threshold using the 
-    Youden index (or Kolmogorov-Smirnov statistic), 
+def optimal_confidence_threshold(df: MetricDF) -> float:
+    """Computes the confidence threshold using the
+    Youden index (or Kolmogorov-Smirnov statistic),
     i.e. the threshold where the empirical CDF of
     the incorrect confidences exceeds that of the
     correct confidences by the largest margin.
@@ -161,16 +172,19 @@ def optimal_confidence_threshold(df : MetricDF) -> float:
         return conf.max()
     z = np.unique(conf)
     cdf_correct = np.searchsorted(np.sort(conf[corr]), z, side="right") / corr.sum()
-    cdf_incorrect = np.searchsorted(np.sort(conf[~corr]), z, side="right") / (~corr).sum()
+    cdf_incorrect = (
+        np.searchsorted(np.sort(conf[~corr]), z, side="right") / (~corr).sum()
+    )
     k = np.argmax(cdf_incorrect - cdf_correct)
-    return (z[k] + z[min(k+1, len(z) - 1)]) / 2
+    return (z[k] + z[min(k + 1, len(z) - 1)]) / 2
+
 
 register_macro(optimal_confidence_threshold)
 
 # @metric(per_level=False, filter=False)
 # def hierarchical_metric(
-#         df : MetricDF, 
-#         rewards : pd.Series[float] | None=None, 
+#         df : MetricDF,
+#         rewards : pd.Series[float] | None=None,
 #         penalties : pd.Series[float] | None=None
 #     ):
 #     if rewards is None:
@@ -182,41 +196,46 @@ register_macro(optimal_confidence_threshold)
 #     m = (df.confidence > df.threshold).astype(float) * (
 #         np.where(
 #             df.correct,
-#             rewards[df.level], 
+#             rewards[df.level],
 #             penalties[df.level]
 #         )
 #     )
 #     return m.sum() / df.instance_id.nunique()
 
-def class_path(cls : str, c2p : dict[str, str]):
+
+def class_path(cls: str, c2p: dict[str, str]):
     path = [cls]
     while path[-1] in c2p:
         path.append(c2p[path[-1]])
     return path
 
-def rank_distance(x : str, y : str, c2p : dict[str, str]):
+
+def rank_distance(x: str, y: str, c2p: dict[str, str]):
     if x == y:
         return 0
     xp = class_path(x, c2p)
     yp = class_path(y, c2p)
-    hit = max([i for i, (a, b) in enumerate(zip(xp[::-1], yp[::-1])) if a == b], default=-1)
+    hit = max(
+        [i for i, (a, b) in enumerate(zip(xp[::-1], yp[::-1])) if a == b], default=-1
+    )
     return min(len(xp), len(yp)) - (hit + 1)
 
-def child2parent_from_combinations(combinations : dict[str, tuple[str, ...]]):
-    child2parent : dict[str, str] = dict()
+
+def child2parent_from_combinations(combinations: dict[str, tuple[str, ...]]):
+    child2parent: dict[str, str] = dict()
     for comb in combinations.values():
         for c, p in zip(comb, comb[1:]):
             if c not in child2parent:
                 child2parent[c] = p
     return child2parent
 
+
 @metric(per_level=False, as_float=False)
-def rank_error(df : MetricDF):
-    """
-    Average distance to last common ancestor.
-    
+def rank_error(df: MetricDF):
+    """Average distance to last common ancestor.
+
     For a prediction, x, and label, y, we find their current
-    hierarchy level, l_0, and the hierarchy level of their 
+    hierarchy level, l_0, and the hierarchy level of their
     last common ancestor, LCA:
     ```
     l_0 = min(level(x), level(y))
@@ -229,65 +248,81 @@ def rank_error(df : MetricDF):
         return None
     child2parent = child2parent_from_combinations(combinations)
     df = df[df.level == df.prediction_level]
-    errs = OrderedDict((lvl, []) for lvl in range(int(df.prediction_level.unique().max()) + 1))
+    errs = OrderedDict(
+        (lvl, []) for lvl in range(int(df.prediction_level.unique().max()) + 1)
+    )
     for x, y, lvl in zip(df.prediction, df.label, df.prediction_level):
         errs[lvl].append(rank_distance(x, y, child2parent))
     avg = mean(chain.from_iterable(errs.values()))
-    counts = OrderedDict((k, OrderedDict(sorted(Counter(v).items()))) for k, v in errs.items())
-    return {
-        "average" : avg,
-        "counts" : counts
-    }
+    counts = OrderedDict(
+        (k, OrderedDict(sorted(Counter(v).items()))) for k, v in errs.items()
+    )
+    return {"average": avg, "counts": counts}
+
 
 # Run all metrics in one call
 def evaluate_all_metrics(
-        df : pd.DataFrame, 
-        known_only : bool=False,
-        per_class : bool=False, 
-        verbose : int=1
-    ):
+    df: pd.DataFrame,
+    known_only: bool = False,
+    per_class: bool = False,
+    verbose: int = 1,
+):
     kwargs = {}
     if known_only:
         kwargs["filter"] = True
     if per_class:
         kwargs["aggregate"] = False
-    with tqdm(METRICS.items(), desc="Computing metrics", unit="metric", leave=verbose > 1, dynamic_ncols=True, disable=verbose==0) as pbar:
+    with tqdm(
+        METRICS.items(),
+        desc="Computing metrics",
+        unit="metric",
+        leave=verbose > 1,
+        dynamic_ncols=True,
+        disable=verbose == 0,
+    ) as pbar:
         metric_values = dict()
         for metric, func in pbar:
-            pbar.set_description_str(f'Computing {metric}')
+            pbar.set_description_str(f"Computing {metric}")
             try:
                 value = retry_with_kwargs(func, df, **kwargs)
             except Exception as e:
-                e.add_note(f'Error in {metric}: {func}')
+                e.add_note(f"Error in {metric}: {func}")
                 raise e
             if value is None:
                 continue
             metric_values[metric] = value
     # Verify that all simple metrics have the same keys (levels)
-    levels = set(tuple(v.keys()) if isinstance(k, dict) else tuple() for k, v in metric_values.items() if k in SIMPLE_METRICS)
+    levels = set(
+        tuple(v.keys()) if isinstance(k, dict) else tuple()
+        for k, v in metric_values.items()
+        if k in SIMPLE_METRICS
+    )
     if len(levels) > 0:
         # If not, we find the metric with the most levels
         max_levels = max(map(len, levels))
         all_levels = [lvls for lvls in levels if len(lvls) == max_levels][0]
-        # Verify that keys of all simple metrics 
+        # Verify that keys of all simple metrics
         if not (set().union(*levels) == set(all_levels)):
-            raise RuntimeError('Inconsistent levels found:', levels)
+            raise RuntimeError("Inconsistent levels found:", levels)
         # Insert NaN in the missing level metric values
         for metric in SIMPLE_METRICS:
             if metric not in metric_values:
                 continue
             for level in all_levels:
                 if level not in metric_values[metric]:
-                    metric_values[metric] = OrderedDict((level, metric_values[metric].get(level, float('nan'))) for level in all_levels)
+                    metric_values[metric] = OrderedDict(
+                        (level, metric_values[metric].get(level, float("nan")))
+                        for level in all_levels
+                    )
     return metric_values
 
-PER_CLASS_EXCEPTIONS = ("theilU", )
+
+PER_CLASS_EXCEPTIONS = ("theilU",)
+
 
 def handle_per_class_metrics(
-        metrics : dict,
-        output : str | None=None,
-        verbose : int=1
-    ):
+    metrics: dict, output: str | None = None, verbose: int = 1
+):
     if verbose >= 2:
         print(pretty_string_dict(metrics))
         print()
@@ -297,30 +332,31 @@ def handle_per_class_metrics(
         print("PER-CLASS METRIC TABLE")
         print(df)
     if output:
-        out_csv = f'{output}.csv'
+        out_csv = f"{output}.csv"
         if os.path.exists(out_csv):
             if verbose > 0:
                 print("Removed old", out_csv)
             os.remove(out_csv)
         df.to_csv(out_csv, index=False)
 
+
 def main(
-        file : str | None=None,
-        output : str | None=None,
-        combinations : str | None=None,
-        optimal : bool=False, 
-        threshold : float | list[float] | None=None, 
-        all : bool=False,
-        known_only : bool=False,
-        label_filter : str | list[str] | None=None,
-        subsample : int | None=None,
-        per_class : bool=False,
-        verbose : int=1
-    ):
+    file: str | None = None,
+    output: str | None = None,
+    combinations: str | None = None,
+    optimal: bool = False,
+    threshold: float | list[float] | None = None,
+    all: bool = False,
+    known_only: bool = False,
+    label_filter: str | list[str] | None = None,
+    subsample: int | None = None,
+    per_class: bool = False,
+    verbose: int = 1,
+):
     if threshold is not None and optimal:
         raise ValueError(
-            'Setting threshold(s) (`threshold`) and choosing the '
-            'thresholds dynamically (`optimal`) is mutually exclusive.'
+            "Setting threshold(s) (`threshold`) and choosing the "
+            "thresholds dynamically (`optimal`) is mutually exclusive."
         )
     if file is None:
         file = os.path.join(os.path.dirname(__file__), "demo.csv")
@@ -334,7 +370,7 @@ def main(
     if optimal:
         threshold = optimal_confidence_threshold(df)
         if isinstance(threshold, dict):
-            threshold = [v for k, v in sorted(threshold.items(), key=lambda x : x[0])]
+            threshold = [v for k, v in sorted(threshold.items(), key=lambda x: x[0])]
     if threshold is not None:
         lvls = sorted(set(df.level))
         if isinstance(threshold, list) and len(threshold) == 1:
@@ -345,14 +381,19 @@ def main(
             thresholds = threshold
         if len(lvls) != len(thresholds):
             raise ValueError(
-                f'Number of supplied thresholds {len(thresholds)} must '
-                f'equal number of levels in metric source {len(lvls)}'
+                f"Number of supplied thresholds {len(thresholds)} must "
+                f"equal number of levels in metric source {len(lvls)}"
             )
         for lvl, thr in zip(lvls, thresholds):
             mask = df.level == lvl
             df.loc[mask, "threshold"] = thr
-        df = MetricDF(df.drop(["prediction_level", "prediction_made", "correct"], axis=1), strict=False)
-    metrics = evaluate_all_metrics(df, known_only=known_only, per_class=per_class, verbose=verbose)
+        df = MetricDF(
+            df.drop(["prediction_level", "prediction_made", "correct"], axis=1),
+            strict=False,
+        )
+    metrics = evaluate_all_metrics(
+        df, known_only=known_only, per_class=per_class, verbose=verbose
+    )
     if per_class:
         handle_per_class_metrics(metrics, output, verbose)
         return
@@ -361,7 +402,7 @@ def main(
             print(pretty_string_dict(metrics))
             print()
         if output:
-            out_json = f'{output}.json'
+            out_json = f"{output}.json"
             if os.path.exists(out_json):
                 if verbose > 0:
                     print("Removed old", out_json)
@@ -372,31 +413,97 @@ def main(
         print("METRIC TABLE")
         print(format_table(metrics, keys=SIMPLE_METRICS))
     if output:
-        out_csv = f'{output}.csv'
+        out_csv = f"{output}.csv"
         if os.path.exists(out_csv):
             if verbose > 0:
                 print("Removed old", out_csv)
             os.remove(out_csv)
-        df_from_dict(metrics, SIMPLE_METRICS, verbose=verbose).to_csv(out_csv, index=False)
+        df_from_dict(metrics, SIMPLE_METRICS, verbose=verbose).to_csv(
+            out_csv, index=False
+        )
+
 
 def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file", help="Path to the result files.")
-    parser.add_argument("-o", "--output", type=str, default=None, required=False, help="Name of the output file(s) (table and JSON, if --all).")
-    parser.add_argument("-c", "--combinations", type=str, default=None, required=False, help="Path to a CSV file with columns for each hierarchy level, where each row is a leaf-species and it's parents.")
-    parser.add_argument("-O", "--optimal", action="store_true", help="Use dynamically calculated optimal confidence threshold for metrics (overrides optional threshold column in file).")
-    parser.add_argument("-t", "--threshold", type=float, nargs="+", default=None, required=False, help="Set the confidence threshold(s) manually (overrides optional threshold column in file).")
-    parser.add_argument("-a", "--all", action="store_true", help="Print full metric results, otherwise only the metric table (default).")
-    parser.add_argument("-K", "--known_only", action="store_true", required=False, help="Compute statistics only for classes known by the model (default=False).")
-    parser.add_argument("--label_filter", type=str, nargs="+", help="A list of or a file containg (level 0/species) labels to subset the results by.")
-    parser.add_argument("--subsample", type=int, default=None, required=None, help="Subsample data (for faster debugging probably) before doing anything else.")
-    parser.add_argument("--per_class", action="store_true", required=False, help="Compute per-class statistics")
-    parser.add_argument("-v", "--verbose", type=int, default=1, required=False, help="Verbosity - 0 (silent), default = 1 (info & summary), 2 (debug - not implemented!)")
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default=None,
+        required=False,
+        help="Name of the output file(s) (table and JSON, if --all).",
+    )
+    parser.add_argument(
+        "-c",
+        "--combinations",
+        type=str,
+        default=None,
+        required=False,
+        help="Path to a CSV file with columns for each hierarchy level, where each row is a leaf-species and it's parents.",
+    )
+    parser.add_argument(
+        "-O",
+        "--optimal",
+        action="store_true",
+        help="Use dynamically calculated optimal confidence threshold for metrics (overrides optional threshold column in file).",
+    )
+    parser.add_argument(
+        "-t",
+        "--threshold",
+        type=float,
+        nargs="+",
+        default=None,
+        required=False,
+        help="Set the confidence threshold(s) manually (overrides optional threshold column in file).",
+    )
+    parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Print full metric results, otherwise only the metric table (default).",
+    )
+    parser.add_argument(
+        "-K",
+        "--known_only",
+        action="store_true",
+        required=False,
+        help="Compute statistics only for classes known by the model (default=False).",
+    )
+    parser.add_argument(
+        "--label_filter",
+        type=str,
+        nargs="+",
+        help="A list of or a file containg (level 0/species) labels to subset the results by.",
+    )
+    parser.add_argument(
+        "--subsample",
+        type=int,
+        default=None,
+        required=None,
+        help="Subsample data (for faster debugging probably) before doing anything else.",
+    )
+    parser.add_argument(
+        "--per_class",
+        action="store_true",
+        required=False,
+        help="Compute per-class statistics",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        type=int,
+        default=1,
+        required=False,
+        help="Verbosity - 0 (silent), default = 1 (info & summary), 2 (debug - not implemented!)",
+    )
     args = parser.parse_args()
     return vars(args)
+
 
 def run():
     main(**cli())
 
-if __name__=='__main__':
+
+if __name__ == "__main__":
     run()

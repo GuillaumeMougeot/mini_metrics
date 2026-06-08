@@ -2,7 +2,7 @@ import os
 import re
 from collections.abc import Callable, Iterable
 from itertools import cycle
-from typing import Any, Callable, Concatenate, Dict, TypeVar, cast
+from typing import Any, Concatenate, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -13,8 +13,9 @@ from mini_metrics.data import MetricDF
 R = TypeVar("R")
 _BAD_KW_RE = re.compile(r"unexpected keyword argument '([^']+)'")
 
+
 def retry_with_kwargs(fn: Callable[..., R], *args: Any, **kwargs: Any) -> R:
-    kw: Dict[str, Any] = dict(kwargs)
+    kw: dict[str, Any] = dict(kwargs)
     for _ in range(len(kw)):
         try:
             return fn(*args, **kw)
@@ -28,35 +29,37 @@ def retry_with_kwargs(fn: Callable[..., R], *args: Any, **kwargs: Any) -> R:
             kw.pop(bad)
     return fn(*args)
 
+
 # Results and printing
 def pretty_string_dict(
-        metrics : dict, 
-        indent : int=0, 
-        digits : int=3,
-        concatenate : bool=True
-    ):
-    """
-    For printing all metrics.
-    """
+    metrics: dict, indent: int = 0, digits: int = 3, concatenate: bool = True
+):
+    """For printing all metrics."""
     parts = []
     for k, v in metrics.items():
         if not isinstance(v, dict):
             if isinstance(v, float):
-                part = f'{" " * indent}{k}', f'{v:.{digits}f}'
+                part = f"{' ' * indent}{k}", f"{v:.{digits}f}"
             else:
-                part = f'{" " * indent}{k}', f'{v}'
+                part = f"{' ' * indent}{k}", f"{v}"
             parts.append(part)
         else:
-            part = f'{" " * indent}{k}:'
+            part = f"{' ' * indent}{k}:"
             parts.append(part)
-            parts.extend(pretty_string_dict(v, indent=indent+2, concatenate=False))
-    first_row_width = max([len(f'{p[0]}') for p in parts if not isinstance(p, str)], default=0)
-    parts = [p if isinstance(p, str) else f'{p[0]:<{first_row_width}} : {p[1]}' for p in parts]
+            parts.extend(pretty_string_dict(v, indent=indent + 2, concatenate=False))
+    first_row_width = max(
+        [len(f"{p[0]}") for p in parts if not isinstance(p, str)], default=0
+    )
+    parts = [
+        p if isinstance(p, str) else f"{p[0]:<{first_row_width}} : {p[1]}"
+        for p in parts
+    ]
     if concatenate:
         return "\n".join(parts)
     return parts
 
-def group_segments(indexes : list[int], max_len : int) -> list[list[int]]:
+
+def group_segments(indexes: list[int], max_len: int) -> list[list[int]]:
     out, cur = [], [indexes[0]]
     for a, b in zip(indexes, indexes[1:]):
         cur.append(b)
@@ -68,20 +71,21 @@ def group_segments(indexes : list[int], max_len : int) -> list[list[int]]:
     out.append(cur)
     return out
 
+
 def cumsum(iter, default=0):
     s = default
     for v in iter:
         s += v
         yield s
 
+
 def format_table(
-        metrics : dict, 
-        keys : list[str] | tuple[str, ...], 
-        digits : int=2, 
-        max_linewidth : int=120
-    ):
-    """
-    For printing/displaying "simple" metrics.
+    metrics: dict,
+    keys: list[str] | tuple[str, ...],
+    digits: int = 2,
+    max_linewidth: int = 120,
+):
+    """For printing/displaying "simple" metrics.
 
     Args:
         metrics: A dictionary of metrics.
@@ -96,31 +100,37 @@ def format_table(
         The formatted table ready to print.
     """
     if isinstance(list(metrics.values())[0], (float, int)):
-        ds : dict[str, dict[int, float]] = {k : {0 : float(v)} for k, v in metrics.items() if k in keys}
+        ds: dict[str, dict[int, float]] = {
+            k: {0: float(v)} for k, v in metrics.items() if k in keys
+        }
     else:
-        ds : dict[str, dict[int, float]] = {k : v for k, v in metrics.items() if k in keys}
+        ds: dict[str, dict[int, float]] = {
+            k: v for k, v in metrics.items() if k in keys
+        }
     # Get rownames
     rows = set([tuple(id.keys()) for id in ds.values()])
     if len(rows) != 1:
-        raise RuntimeError(f'Inner dictionaries contain different keys: {rows}')
+        raise RuntimeError(f"Inner dictionaries contain different keys: {rows}")
     rows = list(rows)[0]
     # Get colnames
     cols = list(ds.keys())
     # Create an initial unaligned table
     lines = [[""] + cols]
     for row in rows:
-        lines.append([f'level {row}'] + [f'{ds[col][row]:.{digits}%}' for col in cols])
+        lines.append([f"level {row}"] + [f"{ds[col][row]:.{digits}%}" for col in cols])
     # Calculate the maximum width of any cell in each column for alignment
-    col_widths = [max([len(line[c]) for line in lines]) for c in range(len(cols)+1)]
+    col_widths = [max([len(line[c]) for line in lines]) for c in range(len(cols) + 1)]
     # Create the table again with the calculated alignment factors
-    fmt_row = f'{{:>{col_widths[0]}}} | ' + " | ".join([f'{{:^{cw}}}' for cw in col_widths[1:]])
+    fmt_row = f"{{:>{col_widths[0]}}} | " + " | ".join(
+        [f"{{:^{cw}}}" for cw in col_widths[1:]]
+    )
     lines = [fmt_row.format(*line) for line in lines]
     # Add divider between column names and data
     divider = "-|-".join(["-" * cw for cw in col_widths])
     lines.insert(1, divider)
     # Add empty line below table (particularly useful for making splitting the table easier)
     lines.append(" " * len(divider))
-    rownames = [line[:(col_widths[0] + 2)] for line in lines]
+    rownames = [line[: (col_widths[0] + 2)] for line in lines]
     rowwidth = len(lines[0])
     # Check if table is too wide and needs to be split
     if rowwidth > max_linewidth:
@@ -128,19 +138,31 @@ def format_table(
         # we remove them before splitting the table
         lines = [line.removeprefix(rowname) for line, rowname in zip(lines, rownames)]
         # Find column divider indexes
-        column_split_indexes = [-1, *[cs - 1 for cs in cumsum((cw + 3 for cw in col_widths[1:]))]]
+        column_split_indexes = [
+            -1,
+            *[cs - 1 for cs in cumsum(cw + 3 for cw in col_widths[1:])],
+        ]
         # Split columns into groups with a total length of no more than max_linewidth - len(rowname)
-        segments = group_segments(column_split_indexes, max_linewidth - len(rownames[0]))
+        segments = group_segments(
+            column_split_indexes, max_linewidth - len(rownames[0])
+        )
         # Get start and end index of each split (set of columns), excluding start and end dividers
-        column_groups = [(idxs[0]+1, idxs[-1]-1) for idxs in segments]
+        column_groups = [(idxs[0] + 1, idxs[-1] - 1) for idxs in segments]
         # Partition the table and read the row names
-        lines = [rownames[i] + line[s:e] for s, e in column_groups for i, line in enumerate(lines)]
+        lines = [
+            rownames[i] + line[s:e]
+            for s, e in column_groups
+            for i, line in enumerate(lines)
+        ]
     # If there is only one row, we don't need to print the rownames
     if len(rows) == 1:
-        lines = [line.removeprefix(rowname) for line, rowname in zip(lines, cycle(rownames))]
+        lines = [
+            line.removeprefix(rowname) for line, rowname in zip(lines, cycle(rownames))
+        ]
     return "\n".join(lines)
 
-def unnest_class(metric_df_data : dict[str, list[dict[str, tuple[float, float]]]]):
+
+def unnest_class(metric_df_data: dict[str, list[dict[str, tuple[float, float]]]]):
     # Invert nested class dictionaries
     scaffold = dict()
     for metric, level_values in metric_df_data.items():
@@ -151,11 +173,11 @@ def unnest_class(metric_df_data : dict[str, list[dict[str, tuple[float, float]]]
                 if cls not in scaffold:
                     scaffold[cls] = dict()
                 scaffold[cls][metric] = value
-                scaffold[cls]["count"] = max(scaffold[cls].get("count", 0), count) 
+                scaffold[cls]["count"] = max(scaffold[cls].get("count", 0), count)
                 scaffold[cls]["level"] = level
     # Remove classes which don't have all metrics
     max_metrics = max(map(len, scaffold.values()))
-    scaffold = {k : v for k, v in scaffold.items() if len(v) == max_metrics}
+    scaffold = {k: v for k, v in scaffold.items() if len(v) == max_metrics}
     # Unfold classes
     out = dict()
     out["class"] = []
@@ -167,14 +189,14 @@ def unnest_class(metric_df_data : dict[str, list[dict[str, tuple[float, float]]]
             out[k].append(v)
     return out
 
+
 def df_from_dict(
-        metrics : dict, 
-        keys : list[str] | tuple[str, ...], 
-        per_class : bool=False,
-        verbose : int=1
-    ):
-    """
-    For creating a pandas dataframe from "simple" metrics.
+    metrics: dict,
+    keys: list[str] | tuple[str, ...],
+    per_class: bool = False,
+    verbose: int = 1,
+):
+    """For creating a pandas dataframe from "simple" metrics.
 
     Args:
         metrics: A dictionary of metrics.
@@ -187,49 +209,58 @@ def df_from_dict(
     if not per_class:
         no_levels = isinstance(list(metrics.values())[0], (float, int))
     else:
-        no_levels = isinstance(list(list(metrics.values())[0].values())[0], (tuple, list))
+        no_levels = isinstance(
+            list(list(metrics.values())[0].values())[0], (tuple, list)
+        )
     if no_levels:
-        ds : dict[str, dict[int, float]] = {k : {0 : float(v) if not per_class else {cls : tuple(map(float, cls_v)) for cls, cls_v in v.items()}} for k, v in metrics.items() if k in keys}
+        ds: dict[str, dict[int, float]] = {
+            k: {
+                0: float(v)
+                if not per_class
+                else {cls: tuple(map(float, cls_v)) for cls, cls_v in v.items()}
+            }
+            for k, v in metrics.items()
+            if k in keys
+        }
         levels = [0]
     else:
-        ds : dict[str, dict[int, float]] = {k : v for k, v in metrics.items() if k in keys}
+        ds: dict[str, dict[int, float]] = {
+            k: v for k, v in metrics.items() if k in keys
+        }
         levels = sorted(list(list(ds.values())[0].keys()))
-    df_data = {
-        k : [v[lvl] for lvl in levels] for k, v in ds.items()
-    }
+    df_data = {k: [v[lvl] for lvl in levels] for k, v in ds.items()}
     df_data["level"] = levels
     id_cols = ["level"]
     if per_class:
         if verbose >= 2:
             print("BEFORE UNNESTING")
-            for k,v in df_data.items():
+            for k, v in df_data.items():
                 print(k, "==>", v)
         df_data = unnest_class(df_data)
         id_cols.append("class")
         id_cols.append("count")
     if verbose >= 2:
         print("DF DATA")
-        for k,v in df_data.items():
+        for k, v in df_data.items():
             print(k, "==>", v)
-    return (
-        pd.DataFrame
-        .from_dict(df_data)
-        .reindex(labels=[*id_cols, *keys], axis="columns")
+    return pd.DataFrame.from_dict(df_data).reindex(
+        labels=[*id_cols, *keys], axis="columns"
     )
+
 
 R = TypeVar("R")
 
+
 # General
 def group_map(
-        df : MetricDF, 
-        group_idx : list[np.ndarray], 
-        func : Callable[Concatenate[MetricDF, ...], R], 
-        *args, 
-        progress : bool=False,
-        **kwargs
-    ) -> Iterable[R]:
-    """
-    Function to iterate over groups of non-contiguous rows (indexes) 
+    df: MetricDF,
+    group_idx: list[np.ndarray],
+    func: Callable[Concatenate[MetricDF, ...], R],
+    *args,
+    progress: bool = False,
+    **kwargs,
+) -> Iterable[R]:
+    """Function to iterate over groups of non-contiguous rows (indexes)
     in a pandas dataframe in contiguous blocks by presorting rows.
 
     Returns generator of values of func applied to each group in
@@ -260,37 +291,44 @@ def group_map(
         it = zip(starts, counts)
         if progress:
             it = tqdm(
-                it, 
-                total=len(blocks), 
-                desc="Mapping over groups...", 
-                leave=False, 
-                unit="group", 
-                dynamic_ncols=True
+                it,
+                total=len(blocks),
+                desc="Mapping over groups...",
+                leave=False,
+                unit="group",
+                dynamic_ncols=True,
             )
         for s, c in it:
-            yield func(iloc[s:s + c], *args, **kwargs)
+            yield func(iloc[s : s + c], *args, **kwargs)
 
     return _gen()
 
-def filter_df(df : MetricDF, filter : str | list[str]):
+
+def filter_df(df: MetricDF, filter: str | list[str]):
     if isinstance(filter, str):
         if os.path.isfile(filter):
-            with open(filter, "r") as f:
-                content = [l for l in map(str.strip, f.readlines()) if l]
+            with open(filter) as f:
+                content = [line for line in map(str.strip, f.readlines()) if line]
                 if len(content) == 1:
                     content = content[0].split(",")
         else:
             filter = [filter]
-    def _match(_df : MetricDF):
-        def _inner(__df : MetricDF):
+
+    def _match(_df: MetricDF):
+        def _inner(__df: MetricDF):
             __df = __df[__df.level == 0]
             return False if len(__df) == 0 else __df.label.item() in filter
+
         idx = _df.groupby("instance_id", sort=False, observed=True).indices
-        idx = [idx.get(grp, np.empty((0,), dtype=np.int64)) for grp in df.instance_id.unique()]
+        idx = [
+            idx.get(grp, np.empty((0,), dtype=np.int64))
+            for grp in df.instance_id.unique()
+        ]
         out = []
         for i, v in zip(idx, group_map(_df, idx, _inner, progress=True)):
             if v:
                 out.append(i)
         return np.concatenate(out)
+
     df = df.take(_match(df))
     return df
