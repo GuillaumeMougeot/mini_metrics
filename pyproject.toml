@@ -19,12 +19,13 @@ maintainers = [
 ]
 description = "A minimal package for computing classification evaluation metrics"
 readme = "README.md"
-license = "MIT"
+license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 keywords = ["machine learning", "metrics", "evaluation", "classification"]
 classifiers = [
   "Development Status :: 3 - Alpha",
-  "Programming Language :: Python"
+  "Programming Language :: Python",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
 ]
 
 [project.urls]
