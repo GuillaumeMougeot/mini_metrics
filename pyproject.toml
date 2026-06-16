@@ -24,7 +24,8 @@ license-files = ["LICENSE"]
 keywords = ["machine learning", "metrics", "evaluation", "classification"]
 classifiers = [
   "Development Status :: 3 - Alpha",
-  "Programming Language :: Python"
+  "Programming Language :: Python",
+  "License :: OSI Approved :: MIT License"
 ]
 
 [project.urls]
