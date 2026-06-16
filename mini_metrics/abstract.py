@@ -1,5 +1,3 @@
-import contextvars
-from contextlib import contextmanager
 from itertools import repeat
 from typing import Any
 
@@ -8,19 +6,6 @@ import numpy as np
 from mini_metrics.data import MetricDF
 from mini_metrics.helpers import group_map
 from mini_metrics.simple import mean, to_float
-
-_SKIP_DECOS: contextvars.ContextVar[bool] = contextvars.ContextVar(
-    "_SKIP_DECOS", default=False
-)
-
-
-@contextmanager
-def skip_decorators():
-    tok = _SKIP_DECOS.set(True)
-    try:
-        yield
-    finally:
-        _SKIP_DECOS.reset(tok)
 
 
 class Metric:
@@ -42,74 +27,63 @@ class Metric:
     def __name__(self) -> str:
         return self.name
 
-    def filter_dataframe(
-        self, df: MetricDF, filter: bool = False, **kwargs
-    ) -> MetricDF:
-        """Filters the dataframe to known labels if configured and requested."""
-        if self.should_filter and filter:
-            return df[df.known_label]
-        return df
-
-    def compute_per_level(self, df: MetricDF, *args, **kwargs) -> Any:
-        """Splits the dataframe by level and computes the metric per level if configured."""
-        if not self.is_per_level:
-            return self.compute_chain(df, *args, **kwargs)
-
-        levels = sorted(df.level.unique().tolist())
-        if len(levels) <= 1:
-            return self.compute_chain(df, *args, **kwargs)
-
-        return {
-            lvl: self.compute_chain(df[df.level == lvl], *args, **kwargs)
-            for lvl in levels
-        }
-
-    def compute_chain(self, df: MetricDF, *args, **kwargs) -> Any:
-        """Runs the chaining layer. Subclasses like AveragedMetric override this."""
-        return self.compute_raw(df, *args, **kwargs)
-
-    def compute_raw(self, df: MetricDF, *args, **kwargs) -> Any:
-        """Calls the main compute logic and applies casting if configured."""
-        val = self.compute(df, *args, **kwargs)
-        if self.should_cast_float:
-            return to_float(val)
-        return val
-
     def compute(self, df: MetricDF, *args, **kwargs) -> Any:
-        """Core metric calculation logic to be implemented by subclasses."""
+        """Core metric calculation logic.
+        
+        Concrete classes override this to implement calculation on a single slice.
+        """
         raise NotImplementedError("Subclasses must implement compute().")
 
-    def __call__(self, df: MetricDF, *args, **kwargs) -> Any:
-        """Entry point for evaluating the metric."""
-        if _SKIP_DECOS.get():
-            return self.compute(df, *args, **kwargs)
-        df_filtered = self.filter_dataframe(df, **kwargs)
-        return self.compute_per_level(df_filtered, *args, **kwargs)
+    def __call__(self, df: MetricDF, *args, filter: bool = False, **kwargs) -> Any:
+        """Entry point for evaluating the metric with filtering and level splitting."""
+        if self.should_filter and filter:
+            df = df[df.known_label]
+
+        levels = [None]
+        if self.is_per_level:
+            levels = sorted(df.level.unique().tolist())
+
+        slices = {lvl: (df[df.level == lvl] if lvl is not None else df) for lvl in levels}
+        results = {k: self.compute(v, *args, **kwargs) for k, v in slices.items()}
+
+        if self.should_cast_float and kwargs.get("aggregate", True):
+            results = {k: to_float(v) for k, v in results.items()}
+
+        return results if self.is_per_level else results[None]
 
 
 class AveragedMetric(Metric):
     """Subclass of Metric that computes a macro/micro average over label groups."""
 
-    macro: bool = True
     group: str = "label"
     by: str = "label"
     skip_nonfinite: bool = False
 
-    def compute_chain(
+    @property
+    def macro(self) -> bool:
+        raise AttributeError(
+            f"Metric {self.__class__.__name__} is an AveragedMetric but does not define 'macro'. "
+            "Please subclass either MicroMetric or MacroMetric to define the averaging type."
+        )
+
+    def compute_all_groups(
         self,
         df: MetricDF,
         *args,
-        aggregate: bool = True,
-        _macro: bool | None = None,
+        macro: bool = True,
         **kwargs,
-    ) -> Any:
-        actual_macro = _macro if _macro is not None else self.macro
-
+    ) -> dict[Any, tuple[float, float]]:
+        """Computes the metric and weights for each class/group.
+        
+        Subclasses with custom grouping/reduction logic (like F1 and TheilU)
+        should override this method. It must return a dictionary mapping
+        each group/class to a tuple of (metric_value, weight).
+        """
         grps = list(getattr(df, self.group).unique())
         if len(grps) <= 1:
-            v = self.compute_raw(df, *args, **kwargs)
-            w = float(len(df) if not actual_macro else 1.0)
-            return v if aggregate else {grps[0] if grps else None: (float(v), w)}
+            v = self.compute(df, *args, **kwargs)
+            w = float(len(df) if not macro else 1.0)
+            return {grps[0] if grps else None: (float(v), w)}
 
         idxs = df.groupby(self.by, sort=False, observed=True).indices
         empty = np.empty((0,), dtype=np.int64)
@@ -117,7 +91,7 @@ class AveragedMetric(Metric):
         values = group_map(
             df=df,
             group_idx=map(idxs.get, grps, repeat(empty)),
-            func=self.compute_raw,
+            func=self.compute,
             *args,
             progress=len(grps) >= 32,
             **kwargs,
@@ -125,7 +99,7 @@ class AveragedMetric(Metric):
 
         weights = (
             repeat(1.0)
-            if actual_macro
+            if macro
             else (
                 getattr(df, self.group)
                 .value_counts(sort=False)
@@ -134,38 +108,60 @@ class AveragedMetric(Metric):
             )
         )
 
-        if aggregate:
-            return mean(values, W=weights, skip_nonfinite=self.skip_nonfinite)
         return {g: (float(v), float(w)) for g, v, w in zip(grps, values, weights)}
 
+    def __call__(
+        self,
+        df: MetricDF,
+        *args,
+        filter: bool = False,
+        aggregate: bool = True,
+        macro: bool | None = None,
+        **kwargs,
+    ) -> Any:
+        if self.should_filter and filter:
+            df = df[df.known_label]
 
-class MicroMetric(Metric):
-    """A metric variant that computes the micro version of a base metric (forces _macro=False)."""
+        levels = [None]
+        if self.is_per_level:
+            levels = sorted(df.level.unique().tolist())
 
-    def __init__(self, base_metric: Metric, name: str | None = None):
-        self.base_metric = base_metric
-        self.name = name or f"micro_{base_metric.name}"
+        slices = {lvl: (df[df.level == lvl] if lvl is not None else df) for lvl in levels}
+        actual_macro = macro if macro is not None else self.macro
 
-    @property
-    def is_simple(self) -> bool:
-        return self.base_metric.is_simple
+        results = {}
+        for lvl, slice_df in slices.items():
+            group_results = self.compute_all_groups(slice_df, *args, macro=actual_macro, **kwargs)
+            if aggregate:
+                values = [v for v, w in group_results.values()]
+                weights = [w for v, w in group_results.values()]
+                results[lvl] = mean(values, W=weights, skip_nonfinite=self.skip_nonfinite)
+            else:
+                results[lvl] = group_results
 
-    def __call__(self, df: MetricDF, *args, **kwargs) -> Any:
-        kwargs["_macro"] = False
-        return self.base_metric(df, *args, **kwargs)
+        if self.should_cast_float and aggregate:
+            results = {k: to_float(v) for k, v in results.items()}
+
+        return results if self.is_per_level else results[None]
 
 
-class MacroMetric(Metric):
-    """A metric variant that computes the macro version of a base metric (forces _macro=True)."""
+class MicroMetric(AveragedMetric):
+    """Mixin/base class that computes the micro version of an AveragedMetric (forces macro=False)."""
 
-    def __init__(self, base_metric: Metric, name: str | None = None):
-        self.base_metric = base_metric
-        self.name = name or f"macro_{base_metric.name}"
+    macro: bool = False
 
-    @property
-    def is_simple(self) -> bool:
-        return self.base_metric.is_simple
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if "name" not in cls.__dict__ and hasattr(cls, "name") and not cls.name.startswith("micro_"):
+            cls.name = f"micro_{cls.name}"
 
-    def __call__(self, df: MetricDF, *args, **kwargs) -> Any:
-        kwargs["_macro"] = True
-        return self.base_metric(df, *args, **kwargs)
+
+class MacroMetric(AveragedMetric):
+    """Mixin/base class that computes the macro version of an AveragedMetric (forces macro=True)."""
+
+    macro: bool = True
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if "name" not in cls.__dict__ and hasattr(cls, "name") and not cls.name.startswith("macro_"):
+            cls.name = f"macro_{cls.name}"

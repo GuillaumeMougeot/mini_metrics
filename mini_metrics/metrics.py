@@ -6,7 +6,7 @@ import os
 from collections import Counter, OrderedDict
 from itertools import chain
 from math import isfinite
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,6 @@ from mini_metrics.abstract import (
     MacroMetric,
     Metric,
     MicroMetric,
-    skip_decorators,
 )
 from mini_metrics.data import MetricDF
 from mini_metrics.helpers import (
@@ -46,6 +45,14 @@ class Accuracy(AveragedMetric):
         return (corr == 1).mean()
 
 
+class MacroAccuracy(Accuracy, MacroMetric):
+    name = "accuracy"
+
+
+class MicroAccuracy(Accuracy, MicroMetric):
+    pass
+
+
 # Precision
 class Precision(AveragedMetric):
     """Calculated as macro-average over all present label classes."""
@@ -54,8 +61,15 @@ class Precision(AveragedMetric):
     by: str = "prediction"
 
     def compute(self, df: MetricDF):
-        with skip_decorators():
-            return cast(float, Accuracy()(df))
+        return cast(float, Accuracy().compute(df))
+
+
+class MacroPrecision(Precision, MacroMetric):
+    name = "precision"
+
+
+class MicroPrecision(Precision, MicroMetric):
+    pass
 
 
 # Recall
@@ -65,32 +79,38 @@ class Recall(AveragedMetric):
     name: str = "recall"
 
     def compute(self, df: MetricDF):
-        with skip_decorators():
-            return cast(float, Accuracy()(df, remove_abstain=False))
+        return cast(float, Accuracy().compute(df, remove_abstain=False))
+
+
+class MacroRecall(Recall, MacroMetric):
+    name = "recall"
+
+
+class MicroRecall(Recall, MicroMetric):
+    pass
 
 
 # F1
-class F1(Metric):
+class F1(AveragedMetric):
     """Calculated as macro-average over all present label classes."""
 
     name: str = "f1"
     should_cast_float = False
     _is_simple = True
 
-    def compute(
-        self, df: MetricDF, aggregate: bool = True, _macro: bool = True
-    ) -> float | dict[str, tuple[float, float]]:
-        Ps, Rs = (
-            Precision()(df, aggregate=False, _macro=_macro),
-            Recall()(df, aggregate=False, _macro=_macro),
-        )
+    def compute_all_groups(
+        self, df: MetricDF, *args, macro: bool = True, **kwargs
+    ) -> dict[str, tuple[float, float]]:
+        Ps = Precision().compute_all_groups(df, *args, macro=macro, **kwargs)
+        Rs = Recall().compute_all_groups(df, *args, macro=macro, **kwargs)
+
         clss = []
         ws = []
         f1s = []
         for cls in Ps.keys():
             P, R = Ps[cls][0], Rs[cls][0]
             clss.append(cls)
-            ws.append(1 if _macro else Ps[cls][1])
+            ws.append(1.0 if macro else Ps[cls][1])
             if not isfinite(P) or not isfinite(R):
                 f1 = float("nan")
             elif P == 0 or R == 0:
@@ -98,31 +118,50 @@ class F1(Metric):
             else:
                 f1 = 2 / (1 / P + 1 / R)
             f1s.append(f1)
-        if aggregate:
-            return mean(f1s, ws)
+
         return {cls: (f1, w) for cls, w, f1 in zip(clss, ws, f1s)}
 
 
+class MacroF1(F1, MacroMetric):
+    name = "f1"
+
+
+class MicroF1(F1, MicroMetric):
+    pass
+
+
 # Theil's U / Uncertainty coefficient
-class TheilU(Metric):
+class TheilU(AveragedMetric):
     """Theil's U metric."""
 
     name: str = "theilU"
 
-    def compute(self, df: MetricDF, _macro: bool = False):
-        C = confusion_matrix(df.label, df.prediction).astype(float)
+    def compute_all_groups(
+        self, df: MetricDF, *args, macro: bool = False, **kwargs
+    ) -> dict[Any, tuple[float, float]]:
+        classes = sorted(list(set(df.label).union(df.prediction)))
+        C = confusion_matrix(df.label, df.prediction, labels=classes).astype(float)
         N, CS, RS = [C.sum(a) for a in [None, 0, 1]]
         if N <= 1:
-            return float("nan")
+            return {c: (float("nan"), 0.0) for c in classes}
         eN = np.clip(shannon_entropy(RS), 0.0, np.inf)
         if eN <= 0.0:
-            return float("nan")
+            return {c: (float("nan"), 0.0) for c in classes}
+
         eCS = np.fromiter(map(shannon_entropy, C.T), float)
-        if not _macro:
-            H_XY = (CS * eCS)[CS > 0].sum() / N
-        else:
-            H_XY = eCS[CS > 0].mean()
-        return cast(float, 1 - H_XY.item() / eN.item())
+
+        results = {}
+        for idx, c in enumerate(classes):
+            if CS[idx] <= 0:
+                continue
+            val = float(1 - eCS[idx].item() / eN.item())
+            w = 1.0 if macro else float(CS[idx].item())
+            results[c] = (val, w)
+        return results
+
+
+class MicroTheilU(TheilU, MicroMetric):
+    name = "theilU"
 
 
 # Coverage
@@ -130,10 +169,13 @@ class Coverage(AveragedMetric):
     """Proportion of instances where the model made any prediction."""
 
     name: str = "coverage"
-    macro: bool = False
 
     def compute(self, df: MetricDF):
         return df.prediction_made.mean()
+
+
+class MicroCoverage(Coverage, MicroMetric):
+    name = "coverage"
 
 
 # Proportion of known labels
@@ -141,11 +183,14 @@ class VocabularyCoverage(AveragedMetric):
     """Proportion of known labels."""
 
     name: str = "vocabulary_coverage"
-    macro: bool = False
     should_filter = False
 
     def compute(self, df: MetricDF):
         return df.known_label.mean()
+
+
+class MicroVocabularyCoverage(VocabularyCoverage, MicroMetric):
+    name = "vocabulary_coverage"
 
 
 # Average Prediction Level
@@ -180,7 +225,6 @@ class OptimalConfidenceThreshold(AveragedMetric):
     """Optimal confidence threshold computed using Youden index."""
 
     name: str = "optimal_confidence_threshold"
-    macro: bool = False
 
     def compute(self, df: MetricDF) -> float:
         conf = df.confidence.to_numpy()
@@ -196,6 +240,14 @@ class OptimalConfidenceThreshold(AveragedMetric):
         )
         k = np.argmax(cdf_incorrect - cdf_correct)
         return (z[k] + z[min(k + 1, len(z) - 1)]) / 2
+
+
+class MicroOptimalConfidenceThreshold(OptimalConfidenceThreshold, MicroMetric):
+    name = "optimal_confidence_threshold"
+
+
+class MacroOptimalConfidenceThreshold(OptimalConfidenceThreshold, MacroMetric):
+    pass
 
 
 # Hierarchy Helpers
@@ -255,21 +307,21 @@ def get_all_metrics() -> dict[str, Metric]:
     return {
         m.name: m
         for m in [
-            Accuracy(),
-            Precision(),
-            Recall(),
-            F1(),
-            MicroMetric(Accuracy()),
-            MicroMetric(Precision()),
-            MicroMetric(Recall()),
-            MicroMetric(F1()),
-            TheilU(),
-            Coverage(),
-            VocabularyCoverage(),
+            MacroAccuracy(),
+            MacroPrecision(),
+            MacroRecall(),
+            MacroF1(),
+            MicroAccuracy(),
+            MicroPrecision(),
+            MicroRecall(),
+            MicroF1(),
+            MicroTheilU(),
+            MicroCoverage(),
+            MicroVocabularyCoverage(),
             AveragePredictionLevel(),
             ConfidenceStats(),
-            OptimalConfidenceThreshold(),
-            MacroMetric(OptimalConfidenceThreshold()),
+            MicroOptimalConfidenceThreshold(),
+            MacroOptimalConfidenceThreshold(),
             RankError(),
         ]
     }
@@ -394,7 +446,7 @@ def main(
     if combinations is not None:
         df = df.add_combinations(combinations)
     if optimal:
-        threshold = OptimalConfidenceThreshold()(df)
+        threshold = MicroOptimalConfidenceThreshold()(df)
         if isinstance(threshold, dict):
             threshold = [v for k, v in sorted(threshold.items(), key=lambda x: x[0])]
     if threshold is not None:
