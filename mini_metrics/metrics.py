@@ -13,6 +13,13 @@ import pandas as pd
 from sklearn.metrics import confusion_matrix
 from tqdm.auto import tqdm
 
+from mini_metrics.abstract import (
+    AveragedMetric,
+    MacroMetric,
+    Metric,
+    MicroMetric,
+    skip_decorators,
+)
 from mini_metrics.data import MetricDF
 from mini_metrics.helpers import (
     df_from_dict,
@@ -21,15 +28,6 @@ from mini_metrics.helpers import (
     pretty_string_dict,
     retry_with_kwargs,
 )
-from mini_metrics.register import (
-    METRICS,
-    SIMPLE_METRICS,
-    AveragedMetric,
-    MacroMetric,
-    Metric,
-    MicroMetric,
-    skip_decorators,
-)
 from mini_metrics.simple import mean, shannon_entropy, to_float
 
 
@@ -37,8 +35,7 @@ from mini_metrics.simple import mean, shannon_entropy, to_float
 class Accuracy(AveragedMetric):
     """Micro-accuracy of a dataframe."""
 
-    def __init__(self, name: str):
-        super().__init__(name)
+    name: str = "accuracy"
 
     def compute(self, df: MetricDF, remove_abstain: bool = True):
         corr = df.correct
@@ -49,55 +46,43 @@ class Accuracy(AveragedMetric):
         return (corr == 1).mean()
 
 
-accuracy = Accuracy("accuracy")
-
-
 # Precision
 class Precision(AveragedMetric):
     """Calculated as macro-average over all present label classes."""
 
-    def __init__(self, name: str):
-        super().__init__(name, by="prediction")
+    name: str = "precision"
+    by: str = "prediction"
 
     def compute(self, df: MetricDF):
         with skip_decorators():
-            return cast(float, accuracy(df))
-
-
-precision = Precision("precision")
+            return cast(float, Accuracy()(df))
 
 
 # Recall
 class Recall(AveragedMetric):
     """Calculated as macro-average over all present label classes."""
 
-    def __init__(self, name: str):
-        super().__init__(name)
+    name: str = "recall"
 
     def compute(self, df: MetricDF):
         with skip_decorators():
-            return cast(float, accuracy(df, remove_abstain=False))
-
-
-recall = Recall("recall")
+            return cast(float, Accuracy()(df, remove_abstain=False))
 
 
 # F1
 class F1(Metric):
     """Calculated as macro-average over all present label classes."""
 
+    name: str = "f1"
     should_cast_float = False
-    force_simple = True
-
-    def __init__(self, name: str):
-        super().__init__(name, is_simple=True)
+    _is_simple = True
 
     def compute(
         self, df: MetricDF, aggregate: bool = True, _macro: bool = True
     ) -> float | dict[str, tuple[float, float]]:
         Ps, Rs = (
-            precision(df, aggregate=False, _macro=_macro),
-            recall(df, aggregate=False, _macro=_macro),
+            Precision()(df, aggregate=False, _macro=_macro),
+            Recall()(df, aggregate=False, _macro=_macro),
         )
         clss = []
         ws = []
@@ -108,7 +93,7 @@ class F1(Metric):
             ws.append(1 if _macro else Ps[cls][1])
             if not isfinite(P) or not isfinite(R):
                 f1 = float("nan")
-            if P == 0 or R == 0:
+            elif P == 0 or R == 0:
                 f1 = 0.0
             else:
                 f1 = 2 / (1 / P + 1 / R)
@@ -118,21 +103,11 @@ class F1(Metric):
         return {cls: (f1, w) for cls, w, f1 in zip(clss, ws, f1s)}
 
 
-f1 = F1("f1")
-
-# Explicit variant registrations
-micro_accuracy = MicroMetric(accuracy)
-micro_precision = MicroMetric(precision)
-micro_recall = MicroMetric(recall)
-micro_f1 = MicroMetric(f1)
-
-
 # Theil's U / Uncertainty coefficient
 class TheilU(Metric):
     """Theil's U metric."""
 
-    def __init__(self, name: str):
-        super().__init__(name)
+    name: str = "theilU"
 
     def compute(self, df: MetricDF, _macro: bool = False):
         C = confusion_matrix(df.label, df.prediction).astype(float)
@@ -150,64 +125,47 @@ class TheilU(Metric):
         return cast(float, 1 - H_XY.item() / eN.item())
 
 
-theilU = TheilU("theilU")
-
-
 # Coverage
 class Coverage(AveragedMetric):
     """Proportion of instances where the model made any prediction."""
 
-    def __init__(self, name: str):
-        super().__init__(name, macro=False)
+    name: str = "coverage"
+    macro: bool = False
 
     def compute(self, df: MetricDF):
         return df.prediction_made.mean()
-
-
-coverage = Coverage("coverage")
 
 
 # Proportion of known labels
 class VocabularyCoverage(AveragedMetric):
     """Proportion of known labels."""
 
+    name: str = "vocabulary_coverage"
+    macro: bool = False
     should_filter = False
-
-    def __init__(self, name: str):
-        super().__init__(name, macro=False)
 
     def compute(self, df: MetricDF):
         return df.known_label.mean()
-
-
-vocabulary_coverage = VocabularyCoverage("vocabulary_coverage")
 
 
 # Average Prediction Level
 class AveragePredictionLevel(Metric):
     """Average Prediction Level."""
 
+    name: str = "average_prediction_level"
     is_per_level = False
     should_filter = False
 
-    def __init__(self, name: str):
-        super().__init__(name)
-
     def compute(self, df: MetricDF):
         return df.prediction_level.mean()
-
-
-average_prediction_level = AveragePredictionLevel("average_prediction_level")
 
 
 # Mean Confidence of Correct vs Incorrect Predictions
 class ConfidenceStats(Metric):
     """Mean Confidence of Correct vs Incorrect Predictions."""
 
+    name: str = "confidence_stats"
     should_cast_float = False
-
-    def __init__(self, name: str):
-        super().__init__(name)
 
     def compute(self, df: MetricDF):
         outcomes = {"incorrect": -1, "abstain": 0, "correct": 1}
@@ -217,15 +175,12 @@ class ConfidenceStats(Metric):
         }
 
 
-confidence_stats = ConfidenceStats("confidence_stats")
-
-
 # Optimal Confidence Threshold
 class OptimalConfidenceThreshold(AveragedMetric):
     """Optimal confidence threshold computed using Youden index."""
 
-    def __init__(self, name: str):
-        super().__init__(name, macro=False)
+    name: str = "optimal_confidence_threshold"
+    macro: bool = False
 
     def compute(self, df: MetricDF) -> float:
         conf = df.confidence.to_numpy()
@@ -241,14 +196,6 @@ class OptimalConfidenceThreshold(AveragedMetric):
         )
         k = np.argmax(cdf_incorrect - cdf_correct)
         return (z[k] + z[min(k + 1, len(z) - 1)]) / 2
-
-
-optimal_confidence_threshold = OptimalConfidenceThreshold(
-    "optimal_confidence_threshold"
-)
-
-# Explicit variant registrations
-macro_optimal_confidence_threshold = MacroMetric(optimal_confidence_threshold)
 
 
 # Hierarchy Helpers
@@ -283,11 +230,9 @@ def child2parent_from_combinations(combinations: dict[str, tuple[str, ...]]):
 class RankError(Metric):
     """Average distance to last common ancestor."""
 
+    name: str = "rank_error"
     is_per_level = False
     should_cast_float = False
-
-    def __init__(self, name: str):
-        super().__init__(name)
 
     def compute(self, df: MetricDF):
         if (combinations := getattr(df, "_class_combinations", None)) is None:
@@ -306,7 +251,28 @@ class RankError(Metric):
         return {"average": avg, "counts": counts}
 
 
-rank_error = RankError("rank_error")
+def get_all_metrics() -> dict[str, Metric]:
+    return {
+        m.name: m
+        for m in [
+            Accuracy(),
+            Precision(),
+            Recall(),
+            F1(),
+            MicroMetric(Accuracy()),
+            MicroMetric(Precision()),
+            MicroMetric(Recall()),
+            MicroMetric(F1()),
+            TheilU(),
+            Coverage(),
+            VocabularyCoverage(),
+            AveragePredictionLevel(),
+            ConfidenceStats(),
+            OptimalConfidenceThreshold(),
+            MacroMetric(OptimalConfidenceThreshold()),
+            RankError(),
+        ]
+    }
 
 
 # Run all metrics in one call
@@ -321,8 +287,12 @@ def evaluate_all_metrics(
         kwargs["filter"] = True
     if per_class:
         kwargs["aggregate"] = False
+
+    metrics_instances = get_all_metrics()
+    simple_metrics = [name for name, m in metrics_instances.items() if m.is_simple]
+
     with tqdm(
-        METRICS.items(),
+        metrics_instances.items(),
         desc="Computing metrics",
         unit="metric",
         leave=verbose > 1,
@@ -344,7 +314,7 @@ def evaluate_all_metrics(
     levels = set(
         tuple(v.keys()) if isinstance(v, dict) else tuple()
         for k, v in metric_values.items()
-        if k in SIMPLE_METRICS
+        if k in simple_metrics
     )
     if len(levels) > 0:
         # If not, we find the metric with the most levels
@@ -354,7 +324,7 @@ def evaluate_all_metrics(
         if not (set().union(*levels) == set(all_levels)):
             raise RuntimeError("Inconsistent levels found:", levels)
         # Insert NaN in the missing level metric values
-        for metric_name in SIMPLE_METRICS:
+        for metric_name in simple_metrics:
             if metric_name not in metric_values:
                 continue
             # If the value is a dictionary (per-level results)
@@ -380,7 +350,9 @@ def handle_per_class_metrics(
     if verbose >= 2:
         print(pretty_string_dict(metrics))
         print()
-    K = [k for k in SIMPLE_METRICS if k not in PER_CLASS_EXCEPTIONS]
+    metrics_instances = get_all_metrics()
+    simple_metrics = [name for name, m in metrics_instances.items() if m.is_simple]
+    K = [k for k in simple_metrics if k not in PER_CLASS_EXCEPTIONS]
     df = df_from_dict(metrics, K, per_class=True, verbose=verbose)
     if verbose >= 1:
         print("PER-CLASS METRIC TABLE")
@@ -422,7 +394,7 @@ def main(
     if combinations is not None:
         df = df.add_combinations(combinations)
     if optimal:
-        threshold = optimal_confidence_threshold(df)
+        threshold = OptimalConfidenceThreshold()(df)
         if isinstance(threshold, dict):
             threshold = [v for k, v in sorted(threshold.items(), key=lambda x: x[0])]
     if threshold is not None:
@@ -451,6 +423,8 @@ def main(
     if per_class:
         handle_per_class_metrics(metrics, output, verbose)
         return
+    metrics_instances = get_all_metrics()
+    simple_metrics = [name for name, m in metrics_instances.items() if m.is_simple]
     if all:
         if verbose > 0:
             print(pretty_string_dict(metrics))
@@ -465,14 +439,14 @@ def main(
                 json.dump(metrics, f)
     if verbose > 0:
         print("METRIC TABLE")
-        print(format_table(metrics, keys=SIMPLE_METRICS))
+        print(format_table(metrics, keys=simple_metrics))
     if output:
         out_csv = f"{output}.csv"
         if os.path.exists(out_csv):
             if verbose > 0:
                 print("Removed old", out_csv)
             os.remove(out_csv)
-        df_from_dict(metrics, SIMPLE_METRICS, verbose=verbose).to_csv(
+        df_from_dict(metrics, simple_metrics, verbose=verbose).to_csv(
             out_csv, index=False
         )
 

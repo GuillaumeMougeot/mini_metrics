@@ -9,10 +9,6 @@ from mini_metrics.data import MetricDF
 from mini_metrics.helpers import group_map
 from mini_metrics.simple import mean, to_float
 
-# Global registries
-METRICS: dict[str, "Metric"] = {}
-SIMPLE_METRICS: list[str] = []
-
 _SKIP_DECOS: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "_SKIP_DECOS", default=False
 )
@@ -30,27 +26,17 @@ def skip_decorators():
 class Metric:
     """Base class for all metrics in mini_metrics."""
 
+    name: str
     is_per_level: bool = True
     should_filter: bool = True
     should_cast_float: bool = True
-    is_simple: bool = True
+    _is_simple: bool | None = None
 
-    def __init__(self, name: str, is_simple: bool | None = None):
-        self.name = name
-
-        # Determine simplicity
-        if is_simple is not None:
-            self.is_simple = is_simple
-        else:
-            self.is_simple = self.is_per_level and self.should_cast_float
-
-        # Register the metric
-        if name in METRICS:
-            raise ValueError(f"Metric {name} already registered")
-        METRICS[name] = self
-        if self.is_simple:
-            if name not in SIMPLE_METRICS:
-                SIMPLE_METRICS.append(name)
+    @property
+    def is_simple(self) -> bool:
+        if self._is_simple is not None:
+            return self._is_simple
+        return self.is_per_level and self.should_cast_float
 
     @property
     def __name__(self) -> str:
@@ -109,21 +95,6 @@ class AveragedMetric(Metric):
     by: str = "label"
     skip_nonfinite: bool = False
 
-    def __init__(
-        self,
-        name: str,
-        macro: bool = True,
-        group: str = "label",
-        by: str = "label",
-        skip_nonfinite: bool = False,
-        is_simple: bool | None = None,
-    ):
-        self.macro = macro
-        self.group = group
-        self.by = by
-        self.skip_nonfinite = skip_nonfinite
-        super().__init__(name, is_simple=is_simple)
-
     def compute_chain(
         self,
         df: MetricDF,
@@ -173,8 +144,11 @@ class MicroMetric(Metric):
 
     def __init__(self, base_metric: Metric, name: str | None = None):
         self.base_metric = base_metric
-        metric_name = name or f"micro_{base_metric.name}"
-        super().__init__(metric_name, is_simple=base_metric.is_simple)
+        self.name = name or f"micro_{base_metric.name}"
+
+    @property
+    def is_simple(self) -> bool:
+        return self.base_metric.is_simple
 
     def __call__(self, df: MetricDF, *args, **kwargs) -> Any:
         kwargs["_macro"] = False
@@ -186,8 +160,11 @@ class MacroMetric(Metric):
 
     def __init__(self, base_metric: Metric, name: str | None = None):
         self.base_metric = base_metric
-        metric_name = name or f"macro_{base_metric.name}"
-        super().__init__(metric_name, is_simple=base_metric.is_simple)
+        self.name = name or f"macro_{base_metric.name}"
+
+    @property
+    def is_simple(self) -> bool:
+        return self.base_metric.is_simple
 
     def __call__(self, df: MetricDF, *args, **kwargs) -> Any:
         kwargs["_macro"] = True
