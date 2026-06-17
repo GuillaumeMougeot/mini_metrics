@@ -131,7 +131,7 @@ class MicroF1(F1, MicroMetric):
 
 
 # Theil's U / Uncertainty coefficient
-class TheilU(AveragedMetric):
+class _TheilU(AveragedMetric):
     """Theil's U metric."""
 
     name: str = "theilU"
@@ -160,7 +160,11 @@ class TheilU(AveragedMetric):
         return results
 
 
-class MicroTheilU(TheilU, MicroMetric):
+class MacroTheilU(_TheilU, MacroMetric):
+    pass
+
+
+class TheilU(_TheilU, MicroMetric):
     name = "theilU"
 
 
@@ -303,28 +307,26 @@ class RankError(Metric):
         return {"average": avg, "counts": counts}
 
 
-def get_all_metrics() -> dict[str, Metric]:
-    return {
-        m.name: m
-        for m in [
-            MacroAccuracy(),
-            MacroPrecision(),
-            MacroRecall(),
-            MacroF1(),
-            MicroAccuracy(),
-            MicroPrecision(),
-            MicroRecall(),
-            MicroF1(),
-            MicroTheilU(),
-            MicroCoverage(),
-            MicroVocabularyCoverage(),
-            AveragePredictionLevel(),
-            ConfidenceStats(),
-            MicroOptimalConfidenceThreshold(),
-            MacroOptimalConfidenceThreshold(),
-            RankError(),
-        ]
-    }
+def get_all_metrics():
+    metric_classes: list[type[Metric]] = [
+        MacroAccuracy,
+        MacroPrecision,
+        MacroRecall,
+        MacroF1,
+        MicroAccuracy,
+        MicroPrecision,
+        MicroRecall,
+        MicroF1,
+        TheilU,
+        MicroCoverage,
+        MicroVocabularyCoverage,
+        AveragePredictionLevel,
+        ConfidenceStats,
+        MicroOptimalConfidenceThreshold,
+        MacroOptimalConfidenceThreshold,
+        RankError,
+    ]
+    return {m_cls.name: m_cls() for m_cls in metric_classes}
 
 
 # Run all metrics in one call
