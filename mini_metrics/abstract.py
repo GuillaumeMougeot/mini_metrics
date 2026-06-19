@@ -29,7 +29,7 @@ class Metric:
 
     def compute(self, df: MetricDF, *args, **kwargs) -> Any:
         """Core metric calculation logic.
-        
+
         Concrete classes override this to implement calculation on a single slice.
         """
         raise NotImplementedError("Subclasses must implement compute().")
@@ -43,7 +43,9 @@ class Metric:
         if self.is_per_level:
             levels = sorted(df.level.unique().tolist())
 
-        slices = {lvl: (df[df.level == lvl] if lvl is not None else df) for lvl in levels}
+        slices = {
+            lvl: (df[df.level == lvl] if lvl is not None else df) for lvl in levels
+        }
         results = {k: self.compute(v, *args, **kwargs) for k, v in slices.items()}
 
         if self.should_cast_float and kwargs.get("aggregate", True):
@@ -74,7 +76,7 @@ class AveragedMetric(Metric):
         **kwargs,
     ) -> dict[Any, tuple[float, float]]:
         """Computes the metric and weights for each class/group.
-        
+
         Subclasses with custom grouping/reduction logic (like F1 and TheilU)
         should override this method. It must return a dictionary mapping
         each group/class to a tuple of (metric_value, weight).
@@ -126,16 +128,22 @@ class AveragedMetric(Metric):
         if self.is_per_level:
             levels = sorted(df.level.unique().tolist())
 
-        slices = {lvl: (df[df.level == lvl] if lvl is not None else df) for lvl in levels}
+        slices = {
+            lvl: (df[df.level == lvl] if lvl is not None else df) for lvl in levels
+        }
         actual_macro = macro if macro is not None else self.macro
 
         results = {}
         for lvl, slice_df in slices.items():
-            group_results = self.compute_all_groups(slice_df, *args, macro=actual_macro, **kwargs)
+            group_results = self.compute_all_groups(
+                slice_df, *args, macro=actual_macro, **kwargs
+            )
             if aggregate:
                 values = [v for v, w in group_results.values()]
                 weights = [w for v, w in group_results.values()]
-                results[lvl] = mean(values, W=weights, skip_nonfinite=self.skip_nonfinite)
+                results[lvl] = mean(
+                    values, W=weights, skip_nonfinite=self.skip_nonfinite
+                )
             else:
                 results[lvl] = group_results
 
@@ -152,7 +160,11 @@ class MicroMetric(AveragedMetric):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if "name" not in cls.__dict__ and hasattr(cls, "name") and not cls.name.startswith("micro_"):
+        if (
+            "name" not in cls.__dict__
+            and hasattr(cls, "name")
+            and not cls.name.startswith("micro_")
+        ):
             cls.name = f"micro_{cls.name}"
 
 
@@ -163,5 +175,9 @@ class MacroMetric(AveragedMetric):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if "name" not in cls.__dict__ and hasattr(cls, "name") and not cls.name.startswith("macro_"):
+        if (
+            "name" not in cls.__dict__
+            and hasattr(cls, "name")
+            and not cls.name.startswith("macro_")
+        ):
             cls.name = f"macro_{cls.name}"
