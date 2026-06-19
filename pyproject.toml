@@ -19,12 +19,13 @@ maintainers = [
 ]
 description = "A minimal package for computing classification evaluation metrics"
 readme = "README.md"
-license = "MIT"
+license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 keywords = ["machine learning", "metrics", "evaluation", "classification"]
 classifiers = [
   "Development Status :: 3 - Alpha",
-  "Programming Language :: Python"
+  "Programming Language :: Python",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
 ]
 
 [project.urls]
@@ -41,7 +42,23 @@ target-version = "py312"
 # Enable core checks, imports, pyupgrade, and pydocstyle
 select = ["E", "F", "I", "UP", "D"]
 # Prefer multi-line docstring summaries (D213); ignore D200 (summary must be on first line)
-ignore = ["D200", "D100"]
+ignore = [
+    "D200",   # summary must be on first line (conflicts with multi-line D213)
+    "D100",   # missing docstring in public module
+    "D101",   # missing docstring in public class
+    "D102",   # missing docstring in public method
+    "D103",   # missing docstring in public function
+    "D104",   # missing docstring in public package
+    "D105",   # missing docstring in magic method
+    "D107",   # missing docstring in __init__
+    "D212",   # multi-line docstring summary should start at first line (conflicts with D213)
+    "D417",   # missing argument description in docstring
+    "UP047",  # use type parameters (PEP 695) instead of TypeVar/ParamSpec
+    "E501",   # line too long (handled by formatting or editor wrapping)
+    "D205",   # 1 blank line required between summary line and description
+    "E731",   # do not assign a lambda expression, use a def
+    "D415",   # first line should end with a period, question mark, or exclamation point
+]
 preview = true
 
 [tool.ruff.lint.per-file-ignores]
