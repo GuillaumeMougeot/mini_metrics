@@ -1,6 +1,6 @@
 [project]
 name = "mini_metrics"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
   "numpy",
   "pandas",
@@ -24,8 +24,7 @@ license-files = ["LICENSE"]
 keywords = ["machine learning", "metrics", "evaluation", "classification"]
 classifiers = [
   "Development Status :: 3 - Alpha",
-  "Programming Language :: Python",
-  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
+  "Programming Language :: Python"
 ]
 
 [project.urls]
