@@ -360,7 +360,7 @@ def evaluate_all_metrics(
                 value = retry_with_kwargs(metric_obj, df, **kwargs)
             except Exception as e:
                 e.add_note(f"Error in {metric_name}: {metric_obj}")
-                raise e
+                raise
             if value is None:
                 continue
             metric_values[metric_name] = value

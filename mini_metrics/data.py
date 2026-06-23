@@ -6,23 +6,25 @@ from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
-from tqdm.auto import tqdm
 
 
 def first_nonzero_ordered(mask: np.ndarray, arr: np.ndarray):
     if mask.shape != arr.shape:
         raise ValueError("mask and arr must have the same shape")
-    idx = np.argsort(arr)
-    sorted_mask = mask[idx]
-    return int(np.nonzero(sorted_mask)[0][0]) if sorted_mask.any() else -1
+    return int(min(arr[mask], default=-1))
 
 
 def group_arr(arr: np.ndarray):
+    if len(arr) == 0:
+        return []
     inverse = np.argsort(arr)
     sorted_arr = arr[inverse]
     split_indices = np.flatnonzero(np.diff(sorted_arr)) + 1
     groups = np.split(inverse, split_indices)
-    return [(val, idxs) for val, idxs in zip(np.unique(arr), groups)]
+    return [
+        (val, idxs)
+        for val, idxs in zip(sorted_arr[np.concatenate(([0], split_indices))], groups)
+    ]
 
 
 _pd_nullable: dict[type, str] = {
@@ -54,7 +56,7 @@ class COLUMNS_DEFAULT:
 
     @staticmethod
     def prediction_level(df: MetricDF):
-        prediction_level = -np.ones((len(df.index),), dtype=np.long)
+        prediction_level = -np.ones((len(df.index),), dtype=int)
         instance_id = df.instance_id.to_numpy()
         confidence = df.confidence.to_numpy()
         threshold = df.threshold.to_numpy()
@@ -215,7 +217,7 @@ class MetricDF(pd.DataFrame):
 
             # Check dtype
             dtype = _pd_nullable[tp]
-            if str(self.dtypes[col]) == dtype:
+            if str(self.dtypes[col]) != dtype:
                 if not coerce:
                     self.invalid_schema(
                         f"Found column: {col} with invalid dtype "
@@ -224,14 +226,16 @@ class MetricDF(pd.DataFrame):
                 else:
                     self[col] = self[col].astype(dtype)
 
-            # Iterate here to allow
             expected_loc += 1
 
         # Compute optional columns if missing
         for col in lazy_cols:
             self[col] = self._default(self, col)
 
-    def add_combinations(self, src: str | list[tuple[str, ...]]):
+    def add_combinations(self, src: str | list[tuple[str, ...]]) -> MetricDF:
+        if self.empty:
+            return self
+
         if isinstance(src, str):
             data = pd.read_csv(src)
             levels = list(map(str, data.columns))
@@ -239,53 +243,49 @@ class MetricDF(pd.DataFrame):
         else:
             combinations = src
             levels = list(map(str, range(len(combinations[0]))))
-        combinations = [tuple(map(str, c)) for c in combinations]
-        combinations = {c[0]: c for c in combinations}
+
+        self._class_combinations = {str(c[0]): tuple(map(str, c)) for c in combinations}
+        self._level_labels = levels
+
         cur_lvls = len(self.level.unique())
-        if cur_lvls == len(levels):
-            self._class_combinations = combinations
-            self._level_labels = levels
-            return self
         if cur_lvls == 0:
-            print("Adding additional combinations to an empty MetricDF is a no-op!")
+            raise ValueError(
+                "Degenerate state: MetricDF contains rows but has 0 unique evaluation levels."
+            )
+        if cur_lvls == len(levels):
             return self
         if cur_lvls != 1:
             raise NotImplementedError(
                 "Adding additional combinations to a MetricDF with more than one existing level is not currently supported."
             )
-        new_cols = [
+
+        n_levels = len(levels)
+
+        expanded_labels = [
+            self._class_combinations[lbl][lvl]
+            for lbl in self["label"]
+            for lvl in range(n_levels)
+        ]
+        expanded_preds = [
+            self._class_combinations[pred][lvl]
+            for pred in self["prediction"]
+            for lvl in range(n_levels)
+        ]
+
+        cols_to_keep = [
             k
             for k in self.columns
             if k not in ["prediction_level", "prediction_made", "correct"]
         ]
-        new_df = {k: [] for k in new_cols}
-        for row in tqdm(
-            self.itertuples(),
-            total=len(self),
-            desc="Creating higher-order rows",
-            leave=False,
-            dynamic_ncols=True,
-        ):
-            for lvl, lvl_label in enumerate(levels):
-                for col in new_cols:
-                    orig = getattr(row, col)
-                    if lvl == 0:
-                        value = orig
-                    if col == "level":
-                        value = lvl
-                    elif col in ("label", "prediction"):
-                        value = combinations[str(orig)][lvl]
-                    else:
-                        value = orig
-                    new_df[col].append(value)
-        new_df = pd.DataFrame.from_dict(new_df)
-        assert isinstance(new_df, pd.DataFrame)
-        new_df = new_df.reindex(columns=new_cols).sort_values(
-            by="instance_id", inplace=False
-        )
-        new_metadata = self.metadata()
-        new_metadata.pop("_validated", None)
-        new_metadata.update(
-            {"_level_labels": levels, "_class_combinations": combinations}
-        )
-        return type(self)(new_df, **new_metadata)
+        new_df = self[cols_to_keep].loc[self.index.repeat(n_levels)].copy()
+
+        new_df["level"] = np.tile(np.arange(n_levels), len(self))
+        new_df["label"] = expanded_labels
+        new_df["prediction"] = expanded_preds
+
+        new_df = new_df.sort_values(by="instance_id").reset_index(drop=True)
+
+        # Re-initialize self in-place
+        self._validated = False
+        self.__init__(new_df)
+        return self
