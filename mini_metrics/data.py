@@ -25,7 +25,12 @@ def group_arr(arr: np.ndarray):
     return [(val, idxs) for val, idxs in zip(np.unique(arr), groups)]
 
 
-_pd_nullable : dict[type, str] = {int: "int64", float: "float64", str: "str", bool: "bool"}
+_pd_nullable: dict[type, str] = {
+    int: "int64",
+    float: "float64",
+    str: "str",
+    bool: "bool",
+}
 
 SCHEMA = (
     ("instance_id", int),
@@ -248,7 +253,11 @@ class MetricDF(pd.DataFrame):
             raise NotImplementedError(
                 "Adding additional combinations to a MetricDF with more than one existing level is not currently supported."
             )
-        new_cols = [k for k in self.columns if k not in ["prediction_level", "prediction_made", "correct"]]
+        new_cols = [
+            k
+            for k in self.columns
+            if k not in ["prediction_level", "prediction_made", "correct"]
+        ]
         new_df = {k: [] for k in new_cols}
         for row in tqdm(
             self.itertuples(),
