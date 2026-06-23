@@ -25,7 +25,7 @@ def group_arr(arr: np.ndarray):
     return [(val, idxs) for val, idxs in zip(np.unique(arr), groups)]
 
 
-_pd_nullable = {int: "int64", float: "float64", str: "string", bool: "bool"}
+_pd_nullable : dict[type, str] = {int: "int64", float: "float64", str: "str", bool: "bool"}
 
 SCHEMA = (
     ("instance_id", int),
@@ -210,7 +210,7 @@ class MetricDF(pd.DataFrame):
 
             # Check dtype
             dtype = _pd_nullable[tp]
-            if str(self.dtypes[col]) != dtype:
+            if str(self.dtypes[col]) == dtype:
                 if not coerce:
                     self.invalid_schema(
                         f"Found column: {col} with invalid dtype "
@@ -248,7 +248,8 @@ class MetricDF(pd.DataFrame):
             raise NotImplementedError(
                 "Adding additional combinations to a MetricDF with more than one existing level is not currently supported."
             )
-        new_df = {k: [] for k in self.columns}
+        new_cols = [k for k in self.columns if k not in ["prediction_level", "prediction_made", "correct"]]
+        new_df = {k: [] for k in new_cols}
         for row in tqdm(
             self.itertuples(),
             total=len(self),
@@ -257,23 +258,24 @@ class MetricDF(pd.DataFrame):
             dynamic_ncols=True,
         ):
             for lvl, lvl_label in enumerate(levels):
-                for col in self.columns:
+                for col in new_cols:
                     orig = getattr(row, col)
                     if lvl == 0:
                         value = orig
                     if col == "level":
                         value = lvl
                     elif col in ("label", "prediction"):
-                        value = combinations[orig][lvl]
+                        value = combinations[str(orig)][lvl]
                     else:
                         value = orig
                     new_df[col].append(value)
         new_df = pd.DataFrame.from_dict(new_df)
         assert isinstance(new_df, pd.DataFrame)
-        new_df = new_df.reindex(columns=self.columns).sort_values(
+        new_df = new_df.reindex(columns=new_cols).sort_values(
             by="instance_id", inplace=False
         )
         new_metadata = self.metadata()
+        new_metadata.pop("_validated", None)
         new_metadata.update(
             {"_level_labels": levels, "_class_combinations": combinations}
         )
