@@ -221,7 +221,7 @@ def df_from_dict(
             }
             for k, v in metrics.items()
             if k in keys
-        }
+        }  # type: ignore
         levels = [0]
     else:
         ds: dict[str, dict[int, float]] = {
@@ -248,11 +248,8 @@ def df_from_dict(
     )
 
 
-R = TypeVar("R")
-
-
 # General
-def group_map(
+def group_map[R](
     df: MetricDF,
     group_idx: list[np.ndarray],
     func: Callable[Concatenate[MetricDF, ...], R],
@@ -321,7 +318,7 @@ def filter_df(df: MetricDF, filter: str | list[str]):
 
         idx = _df.groupby("instance_id", sort=False, observed=True).indices
         idx = [
-            idx.get(grp, np.empty((0,), dtype=np.int64))
+            np.asarray(idx.get(grp, np.empty((0,), dtype=np.int64)), dtype=np.int64)
             for grp in df.instance_id.unique()
         ]
         out = []

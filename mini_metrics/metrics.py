@@ -9,7 +9,6 @@ from math import isfinite
 from typing import Any, cast
 
 import numpy as np
-import pandas as pd
 from sklearn.metrics import confusion_matrix
 from tqdm.auto import tqdm
 
@@ -331,7 +330,7 @@ def get_all_metrics():
 
 # Run all metrics in one call
 def evaluate_all_metrics(
-    df: pd.DataFrame,
+    df: MetricDF,
     known_only: bool = False,
     per_class: bool = False,
     verbose: int = 1,
@@ -357,7 +356,9 @@ def evaluate_all_metrics(
         for metric_name, metric_obj in pbar:
             pbar.set_description_str(f"Computing {metric_name}")
             try:
-                value = retry_with_kwargs(metric_obj, df, **kwargs)
+                value = retry_with_kwargs(
+                    metric_obj, df, **kwargs, progress=verbose > 0
+                )
             except Exception as e:
                 e.add_note(f"Error in {metric_name}: {metric_obj}")
                 raise
@@ -442,7 +443,7 @@ def main(
         file = os.path.join(os.path.dirname(__file__), "demo.csv")
     df = MetricDF.from_source(file)
     if subsample is not None and subsample != 1:
-        df = df.take(df.index[slice(None, None, subsample)])
+        df = df.take(df.index[::subsample])
     if label_filter is not None:
         df = filter_df(df, label_filter)
     if combinations is not None:
@@ -450,12 +451,14 @@ def main(
     if optimal:
         threshold = MicroOptimalConfidenceThreshold()(df)
         if isinstance(threshold, dict):
-            threshold = [v for k, v in sorted(threshold.items(), key=lambda x: x[0])]
+            threshold = [
+                float(v) for k, v in sorted(threshold.items(), key=lambda x: x[0])
+            ]
     if threshold is not None:
         lvls = sorted(set(df.level))
         if isinstance(threshold, list) and len(threshold) == 1:
             threshold = threshold[0]
-        if isinstance(threshold, float):
+        if isinstance(threshold, (float, int)):
             thresholds = [threshold] * len(lvls)
         else:
             thresholds = threshold
@@ -562,7 +565,7 @@ def cli():
         "--subsample",
         type=int,
         default=None,
-        required=None,
+        required=False,
         help="Subsample data (for faster debugging probably) before doing anything else.",
     )
     parser.add_argument(

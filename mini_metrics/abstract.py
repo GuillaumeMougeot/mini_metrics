@@ -73,6 +73,7 @@ class AveragedMetric(Metric):
         df: MetricDF,
         *args,
         macro: bool = True,
+        progress: bool = True,
         **kwargs,
     ) -> dict[Any, tuple[float, float]]:
         """Computes the metric and weights for each class/group.
@@ -95,7 +96,7 @@ class AveragedMetric(Metric):
             group_idx=map(idxs.get, grps, repeat(empty)),
             func=self.compute,
             *args,
-            progress=len(grps) >= 32,
+            progress=progress and len(grps) >= 32,
             **kwargs,
         )
 

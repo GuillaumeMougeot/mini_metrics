@@ -156,12 +156,6 @@ class MetricDF(pd.DataFrame):
                 setattr(self, field, getattr(other, field, default))
         return super().__finalize__(other, method=method)
 
-    def metadata(self):
-        return {
-            k: getattr(self, k, self._metadata_default.get(k, None))
-            for k in self._metadata
-        }
-
     def __init__(
         self, data=None, *, coerce: bool = True, strict: bool = True, **kwargs
     ):
@@ -184,6 +178,12 @@ class MetricDF(pd.DataFrame):
                 self.reindex(columns=[col for col, _ in self._schema]),
                 **self.metadata(),
             )
+
+    def metadata(self):
+        return {
+            k: getattr(self, k, self._metadata_default.get(k, None))
+            for k in self._metadata
+        }
 
     def invalid_schema(self, msg: str):
         raise RuntimeError(f"Invalid data schema:\n{msg}")
