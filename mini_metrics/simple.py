@@ -8,7 +8,7 @@ import pandas as pd
 
 
 def to_float(x) -> float:
-    if isinstance(x, float):
+    if type(x) is float:
         return x
     return float(pd.to_numeric(x).item())
 
