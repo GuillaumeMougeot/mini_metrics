@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from itertools import repeat
 from math import isfinite
-from typing import SupportsFloat, cast
+from typing import SupportsFloat
 
 import numpy as np
 import pandas as pd
@@ -10,7 +10,7 @@ import pandas as pd
 def to_float(x) -> float:
     if isinstance(x, float):
         return x
-    return cast(float, pd.to_numeric(x).item())
+    return float(pd.to_numeric(x).item())
 
 
 def mean(
