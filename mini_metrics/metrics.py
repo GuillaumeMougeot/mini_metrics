@@ -347,14 +347,15 @@ def evaluate_all_metrics(
     known_only: bool = False,
     per_class: bool = False,
     verbose: int = 1,
+    **kwargs
 ) -> dict[str, dict[int, float] | dict[str, tuple[float, float]] | float | Any]:
-    kwargs = {}
+    metric_kwargs = {}
     if known_only:
-        kwargs["filter"] = True
+        metric_kwargs["filter"] = True
     if per_class:
-        kwargs["aggregate"] = False
+        metric_kwargs["aggregate"] = False
 
-    metrics_instances = get_all_metrics()
+    metrics_instances = get_all_metrics(**kwargs)
     simple_metrics = get_all_metrics(simple=True)
 
     with tqdm(
@@ -370,7 +371,7 @@ def evaluate_all_metrics(
             pbar.set_description_str(f"Computing {metric_name}")
             try:
                 value = retry_with_kwargs(
-                    metric_obj, df, **kwargs, progress=verbose > 0
+                    metric_obj, df, **metric_kwargs, progress=verbose > 0
                 )
             except Exception as e:
                 e.add_note(f"Error in {metric_name}: {metric_obj}")
