@@ -347,7 +347,7 @@ def evaluate_all_metrics(
     known_only: bool = False,
     per_class: bool = False,
     verbose: int = 1,
-    **kwargs
+    **kwargs,
 ) -> dict[str, dict[int, float] | dict[str, tuple[float, float]] | float | Any]:
     metric_kwargs = {}
     if known_only:
