@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from collections import Counter, OrderedDict
 from itertools import chain
 from math import isfinite
@@ -306,7 +307,18 @@ class RankError(Metric):
         return {"average": avg, "counts": counts}
 
 
-def get_all_metrics():
+def get_all_metrics(
+    pattern: str | re.Pattern | None = None, simple: bool | None = None
+):
+    def metric_filter(name_obj: tuple[str, Metric]):
+        name, obj = name_obj
+        retval = True
+        if pattern:
+            retval = retval and bool(re.search(pattern, name))
+        if simple:
+            retval = retval and obj.is_simple
+        return retval
+
     metric_classes: list[type[Metric]] = [
         MacroAccuracy,
         MacroPrecision,
@@ -325,7 +337,8 @@ def get_all_metrics():
         MacroOptimalConfidenceThreshold,
         RankError,
     ]
-    return {m_cls.name: m_cls() for m_cls in metric_classes}
+    metrics = {m_cls.name: m_cls() for m_cls in metric_classes}
+    return dict(filter(metric_filter, metrics.items()))
 
 
 # Run all metrics in one call
@@ -334,7 +347,7 @@ def evaluate_all_metrics(
     known_only: bool = False,
     per_class: bool = False,
     verbose: int = 1,
-):
+) -> dict[str, dict[int, float] | dict[str, tuple[float, float]] | float | Any]:
     kwargs = {}
     if known_only:
         kwargs["filter"] = True
@@ -342,7 +355,7 @@ def evaluate_all_metrics(
         kwargs["aggregate"] = False
 
     metrics_instances = get_all_metrics()
-    simple_metrics = [name for name, m in metrics_instances.items() if m.is_simple]
+    simple_metrics = get_all_metrics(simple=True)
 
     with tqdm(
         metrics_instances.items(),
@@ -400,14 +413,14 @@ PER_CLASS_EXCEPTIONS = ("theilU",)
 
 
 def handle_per_class_metrics(
-    metrics: dict, output: str | None = None, verbose: int = 1
+    metrics: dict[str, dict[int, float] | float | Any],
+    output: str | None = None,
+    verbose: int = 1,
 ):
     if verbose >= 2:
         print(pretty_string_dict(metrics))
         print()
-    metrics_instances = get_all_metrics()
-    simple_metrics = [name for name, m in metrics_instances.items() if m.is_simple]
-    K = [k for k in simple_metrics if k not in PER_CLASS_EXCEPTIONS]
+    K = [k for k in get_all_metrics(simple=True) if k not in PER_CLASS_EXCEPTIONS]
     df = df_from_dict(metrics, K, per_class=True, verbose=verbose)
     if verbose >= 1:
         print("PER-CLASS METRIC TABLE")
@@ -480,8 +493,7 @@ def main(
     if per_class:
         handle_per_class_metrics(metrics, output, verbose)
         return
-    metrics_instances = get_all_metrics()
-    simple_metrics = [name for name, m in metrics_instances.items() if m.is_simple]
+    simple_metrics = get_all_metrics(simple=True).keys()
     if all:
         if verbose > 0:
             print(pretty_string_dict(metrics))

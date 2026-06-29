@@ -81,7 +81,7 @@ def cumsum(iter, default=0):
 
 def format_table(
     metrics: dict,
-    keys: list[str] | tuple[str, ...],
+    keys: Iterable[str],
     digits: int = 2,
     max_linewidth: int = 120,
 ):
@@ -99,6 +99,7 @@ def format_table(
     Returns:
         The formatted table ready to print.
     """
+    keys = list(keys)
     if isinstance(list(metrics.values())[0], (float, int)):
         ds: dict[str, dict[int, float]] = {
             k: {0: float(v)} for k, v in metrics.items() if k in keys
@@ -162,13 +163,19 @@ def format_table(
     return "\n".join(lines)
 
 
-def unnest_class(metric_df_data: dict[str, list[dict[str, tuple[float, float]]]]):
+def unnest_class(
+    metric_df_data: dict[str, list[int] | list[dict[str, tuple[float, float]]]],
+) -> dict[str, list[float] | list[int] | list[str]]:
     # Invert nested class dictionaries
     scaffold = dict()
     for metric, level_values in metric_df_data.items():
         if metric == "level":
             continue
         for level, class_values in enumerate(level_values):
+            if not isinstance(class_values, dict):
+                raise RuntimeError(
+                    f"Expected {metric} values to be a dictionary but found {type(class_values).__class__.__name__}"
+                )
             for cls, (value, count) in class_values.items():
                 if cls not in scaffold:
                     scaffold[cls] = dict()
@@ -179,7 +186,7 @@ def unnest_class(metric_df_data: dict[str, list[dict[str, tuple[float, float]]]]
     max_metrics = max(map(len, scaffold.values()))
     scaffold = {k: v for k, v in scaffold.items() if len(v) == max_metrics}
     # Unfold classes
-    out = dict()
+    out: dict[str, list[float] | list[int] | list[str]] = dict()
     out["class"] = []
     for cls, metrics in scaffold.items():
         out["class"].append(cls)
@@ -191,60 +198,73 @@ def unnest_class(metric_df_data: dict[str, list[dict[str, tuple[float, float]]]]
 
 
 def df_from_dict(
-    metrics: dict,
-    keys: list[str] | tuple[str, ...],
+    metrics: dict[str, float]
+    | dict[str, dict[int, float]]
+    | dict[str, dict[str, list[float] | tuple[float, ...]]]
+    | dict[str, dict[int, dict[str, float]]],
+    keys: Iterable[str],
     per_class: bool = False,
     verbose: int = 1,
-):
-    """For creating a pandas dataframe from "simple" metrics.
-
-    Args:
-        metrics: A dictionary of metrics.
-        keys: A list/tuple/set of keys of metrics to use in the table.
-            All keys must correspond to "simple" metrics.
-
-    Returns:
-        A pandas dataframe with columns `("level", *keys)`.
-    """
+) -> pd.DataFrame:
+    """Creates a pandas dataframe from polymorphic metrics dictionaries."""
+    target_keys = set(keys)
+    filtered_metrics = {k: v for k, v in metrics.items() if k in target_keys}
+    if not filtered_metrics:
+        return pd.DataFrame()
+    sample_metric = next(iter(filtered_metrics.values()))
     if not per_class:
-        no_levels = isinstance(list(metrics.values())[0], (float, int))
+        no_levels = isinstance(sample_metric, (float, int))
     else:
-        no_levels = isinstance(
-            list(list(metrics.values())[0].values())[0], (tuple, list)
-        )
+        if isinstance(sample_metric, dict) and sample_metric:
+            sample_sub_value = next(iter(sample_metric.values()))
+            no_levels = isinstance(sample_sub_value, (tuple, list))
+        else:
+            no_levels = False
+
+    levels: list[int]
+    df_data: dict[str, list[Any]] = {}
+
     if no_levels:
-        ds: dict[str, dict[int, float]] = {
-            k: {
-                0: float(v)
-                if not per_class
-                else {cls: tuple(map(float, cls_v)) for cls, cls_v in v.items()}
-            }
-            for k, v in metrics.items()
-            if k in keys
-        }  # type: ignore
         levels = [0]
+        for k, v in filtered_metrics.items():
+            if not per_class:
+                df_data[k] = [float(v)]
+            else:
+                if isinstance(v, dict):
+                    df_data[k] = [
+                        {cls: tuple(map(float, cls_v)) for cls, cls_v in v.items()}
+                    ]
     else:
-        ds: dict[str, dict[int, float]] = {
-            k: v for k, v in metrics.items() if k in keys
-        }
-        levels = sorted(list(list(ds.values())[0].keys()))
-    df_data = {k: [v[lvl] for lvl in levels] for k, v in ds.items()}
+        # Standard leveled parsing
+        first_val = next(iter(filtered_metrics.values()))
+        if isinstance(first_val, dict):
+            levels = sorted(map(int, first_val.keys()))
+        else:
+            levels = [0]
+
+        for k, v in filtered_metrics.items():
+            if isinstance(v, dict):
+                df_data[k] = [v.get(lvl, float("nan")) for lvl in levels]
+
     df_data["level"] = levels
     id_cols = ["level"]
+
     if per_class:
         if verbose >= 2:
             print("BEFORE UNNESTING")
-            for k, v in df_data.items():
-                print(k, "==>", v)
+            for k, val in df_data.items():
+                print(f"{k} ==> {val}")
+
         df_data = unnest_class(df_data)
-        id_cols.append("class")
-        id_cols.append("count")
+        id_cols.extend(["class", "count"])
+
     if verbose >= 2:
         print("DF DATA")
-        for k, v in df_data.items():
-            print(k, "==>", v)
+        for k, val in df_data.items():
+            print(f"{k} ==> {val}")
+
     return pd.DataFrame.from_dict(df_data).reindex(
-        labels=[*id_cols, *keys], axis="columns"
+        labels=[*id_cols, *sorted(target_keys)], axis="columns"
     )
 
 
