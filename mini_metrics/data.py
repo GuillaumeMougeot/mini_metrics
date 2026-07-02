@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
-from typing import IO
+from dataclasses import dataclass, fields
+from itertools import chain, repeat
+from typing import IO, override
 from zipfile import ZipFile
 
 import numpy as np
@@ -64,7 +66,7 @@ class COLUMNS_DEFAULT:
         for gid, gidx in group_arr(instance_id):
             conf, thr, lvl = (confidence[gidx], threshold[gidx], level[gidx])
             prediction_level[gidx] = first_nonzero_ordered(conf >= thr, lvl)
-        return pd.Series(prediction_level)
+        return pd.Series(prediction_level, index=df.index)
 
     @staticmethod
     def known_label(df: MetricDF):
@@ -87,7 +89,59 @@ class COLUMNS_DEFAULT:
         return getattr(self, what)(df)
 
 
-OPTIONAL_COLUMNS = tuple([col for col, _ in SCHEMA if col in COLUMNS_DEFAULT()])
+COLUMNS = tuple(k for k, _ in SCHEMA)
+OPTIONAL_COLUMNS = tuple(filter(lambda col: col in COLUMNS_DEFAULT(), COLUMNS))
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class MetricData:
+    """A pure-NumPy view of MetricDF for high-performance iteration and slicing."""
+
+    instance_id: np.ndarray | None = None
+    filename: np.ndarray | None = None
+    level: np.ndarray | None = None
+    label: np.ndarray | None = None
+    prediction: np.ndarray | None = None
+    confidence: np.ndarray | None = None
+    threshold: np.ndarray | None = None
+    known_label: np.ndarray | None = None
+    prediction_level: np.ndarray | None = None
+    prediction_made: np.ndarray | None = None
+    correct: np.ndarray | None = None
+
+    def __len__(self):
+        for f in fields(self):
+            v = getattr(self, f.name)
+            if v is not None:
+                return len(v)
+        return 0
+
+    def slice(self, start: int, end: int):
+        """Zero-copy slice of all underlying arrays that are present."""
+        return type(self)(
+            **{
+                f.name: val[start:end]
+                for f in fields(self)
+                if (val := getattr(self, f.name)) is not None
+            }
+        )
+
+    def take(self, indices: np.ndarray):
+        """Advanced indexing across all arrays that are present."""
+        return type(self)(
+            **{
+                f.name: val[indices]
+                for f in fields(self)
+                if (val := getattr(self, f.name)) is not None
+            }
+        )
+
+    def to_dict(self) -> dict[str, np.ndarray]:
+        return {
+            f.name: value
+            for f in fields(self)
+            if (value := getattr(self, f.name)) is not None
+        }
 
 
 class MetricDF(pd.DataFrame):
@@ -143,12 +197,19 @@ class MetricDF(pd.DataFrame):
         return cls(pd.read_csv(src))
 
     @property
+    def data(self) -> MetricData:
+        """Returns a high-performance, read-only NumPy representation of the DataFrame."""
+        return MetricData(**{col: self[col].to_numpy() for col in self.columns})
+
+    @property
+    @override
     def _constructor(self):
         def _c(*args, **kwargs):
             return type(self)(*args, **{**self.metadata(), **kwargs}).__finalize__(self)
 
         return _c
 
+    @override
     def __finalize__(self, other=None, method=None):
         if isinstance(other, MetricDF):
             for field in other._metadata:
@@ -159,6 +220,8 @@ class MetricDF(pd.DataFrame):
     def __init__(
         self, data=None, *, coerce: bool = True, strict: bool = True, **kwargs
     ):
+        if isinstance(data, (MetricDF, pd.DataFrame)):
+            data.reset_index(drop=True)
         if isinstance(data, MetricDF):
             old_metadata = data.metadata()
             old_metadata.pop("_validated", None)
@@ -174,10 +237,17 @@ class MetricDF(pd.DataFrame):
         if not self._validated:
             self.validate(coerce=coerce, strict=strict)
             self._validated = True
-            self.__init__(
-                self.reindex(columns=[col for col, _ in self._schema]),
-                **self.metadata(),
-            )
+            expected_columns = [col for col, _ in self._schema]
+            if strict and not all(
+                (
+                    e == o
+                    for e, o in zip(expected_columns, chain(self.columns, repeat(None)))
+                )
+            ):
+                self.__init__(
+                    self.reindex(columns=expected_columns),
+                    **self.metadata(),
+                )
 
     def metadata(self):
         return {
@@ -217,7 +287,7 @@ class MetricDF(pd.DataFrame):
 
             # Check dtype
             dtype = _pd_nullable[tp]
-            if str(self.dtypes[col]) != dtype:
+            if self.dtypes[col].name != dtype:
                 if not coerce:
                     self.invalid_schema(
                         f"Found column: {col} with invalid dtype "

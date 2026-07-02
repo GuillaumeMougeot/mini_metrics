@@ -5,6 +5,7 @@ import json
 import os
 import re
 from collections import Counter, OrderedDict
+from collections.abc import Callable, Iterable
 from itertools import chain
 from math import isfinite
 from typing import Any, cast
@@ -19,7 +20,7 @@ from mini_metrics.abstract import (
     Metric,
     MicroMetric,
 )
-from mini_metrics.data import MetricDF
+from mini_metrics.data import COLUMNS, OPTIONAL_COLUMNS, MetricData, MetricDF
 from mini_metrics.helpers import (
     df_from_dict,
     filter_df,
@@ -27,22 +28,26 @@ from mini_metrics.helpers import (
     pretty_string_dict,
     retry_with_kwargs,
 )
-from mini_metrics.simple import mean, shannon_entropy, to_float
+from mini_metrics.simple import mean, shannon_entropy
 
 
 # Accuracy
 class Accuracy(AveragedMetric):
     """Micro-accuracy of a dataframe."""
 
-    name: str = "accuracy"
+    name = "accuracy"
+    columns = ("correct", "prediction_made")
 
-    def compute(self, df: MetricDF, remove_abstain: bool = True):
+    def compute(self, df: MetricDF | MetricData, remove_abstain: bool = True):
         corr = df.correct
+        pred = df.prediction_made
+        assert corr is not None
+        assert pred is not None
         if remove_abstain:
-            corr = corr[df.prediction_made]
+            corr = corr[pred]
         if len(corr) == 0:
             return 0.0
-        return (corr == 1).mean()
+        return np.mean(corr == 1).item()
 
 
 class MacroAccuracy(Accuracy, MacroMetric):
@@ -60,7 +65,7 @@ class Precision(AveragedMetric):
     name: str = "precision"
     by: str = "prediction"
 
-    def compute(self, df: MetricDF):
+    def compute(self, df: MetricDF | MetricData):
         return cast(float, Accuracy().compute(df))
 
 
@@ -78,7 +83,7 @@ class Recall(AveragedMetric):
 
     name: str = "recall"
 
-    def compute(self, df: MetricDF):
+    def compute(self, df: MetricDF | MetricData):
         return cast(float, Accuracy().compute(df, remove_abstain=False))
 
 
@@ -137,10 +142,13 @@ class _TheilU(AveragedMetric):
     name: str = "theilU"
 
     def compute_all_groups(
-        self, df: MetricDF, *args, macro: bool = False, **kwargs
+        self, df: MetricDF | MetricData, *args, macro: bool = False, **kwargs
     ) -> dict[Any, tuple[float, float]]:
-        classes = sorted(list(set(df.label).union(df.prediction)))
-        C = confusion_matrix(df.label, df.prediction, labels=classes).astype(float)
+        lab, pred = df.label, df.prediction
+        assert lab is not None
+        assert pred is not None
+        classes = sorted(list(set(lab).union(pred)))
+        C = confusion_matrix(lab, pred, labels=classes).astype(float)
         N, CS, RS = [C.sum(a) for a in [None, 0, 1]]
         if N <= 1:
             return {c: (float("nan"), 0.0) for c in classes}
@@ -173,9 +181,12 @@ class Coverage(AveragedMetric):
     """Proportion of instances where the model made any prediction."""
 
     name: str = "coverage"
+    columns = ("prediction_made",)
 
-    def compute(self, df: MetricDF):
-        return df.prediction_made.mean()
+    def compute(self, df: MetricDF | MetricData):
+        pm = df.prediction_made
+        assert pm is not None
+        return np.mean(pm)
 
 
 class MicroCoverage(Coverage, MicroMetric):
@@ -187,10 +198,13 @@ class VocabularyCoverage(AveragedMetric):
     """Proportion of known labels."""
 
     name: str = "vocabulary_coverage"
+    columns = ("known_label",)
     should_filter = False
 
-    def compute(self, df: MetricDF):
-        return df.known_label.mean()
+    def compute(self, df: MetricDF | MetricData):
+        kn = df.known_label
+        assert kn is not None
+        return np.mean(kn)
 
 
 class MicroVocabularyCoverage(VocabularyCoverage, MicroMetric):
@@ -202,11 +216,14 @@ class AveragePredictionLevel(Metric):
     """Average Prediction Level."""
 
     name: str = "average_prediction_level"
+    columns = ("prediction_level",)
     is_per_level = False
     should_filter = False
 
-    def compute(self, df: MetricDF):
-        return df.prediction_level.mean()
+    def compute(self, df: MetricDF | MetricData):
+        pl = df.prediction_level
+        assert pl is not None
+        return np.mean(pl)
 
 
 # Mean Confidence of Correct vs Incorrect Predictions
@@ -214,44 +231,96 @@ class ConfidenceStats(Metric):
     """Mean Confidence of Correct vs Incorrect Predictions."""
 
     name: str = "confidence_stats"
+    columns = ("correct", "confidence")
     should_cast_float = False
 
-    def compute(self, df: MetricDF):
+    def compute(self, df: MetricDF | MetricData):
         outcomes = {"incorrect": -1, "abstain": 0, "correct": 1}
+        correct = df.correct
+        assert correct is not None
+        confidence = df.confidence
+        assert confidence is not None
         return {
-            k: to_float(df[df.correct == v].confidence.mean())
+            k: np.mean(confidence[cm]).item()
+            if np.any(cm := correct == v)
+            else float("nan")
             for k, v in outcomes.items()
         }
 
 
 # Optimal Confidence Threshold
-class OptimalConfidenceThreshold(AveragedMetric):
-    """Optimal confidence threshold computed using Youden index."""
-
+class OptimalConfidenceThreshold(Metric):
     name: str = "optimal_confidence_threshold"
+    breaks: int = 15
+    depth: int = 3
+    eps: float = 1e-3
+    crit: type[Metric] = MacroF1
+    target: Callable[[Iterable[float]], float] = max
+    columns = (*(set(COLUMNS) - set(OPTIONAL_COLUMNS)), "known_label")
 
-    def compute(self, df: MetricDF) -> float:
-        conf = df.confidence.to_numpy()
-        corr = (df.label == df.prediction).to_numpy()
-        if corr.all():
-            return conf.min()
-        if ~corr.any():
-            return conf.max()
-        z = np.unique(conf)
-        cdf_correct = np.searchsorted(np.sort(conf[corr]), z, side="right") / corr.sum()
-        cdf_incorrect = (
-            np.searchsorted(np.sort(conf[~corr]), z, side="right") / (~corr).sum()
-        )
-        k = np.argmax(cdf_incorrect - cdf_correct)
-        return (z[k] + z[min(k + 1, len(z) - 1)]) / 2
+    def compute(self, df: MetricDF | MetricData, verbose: int = 1) -> float:
+        base_df_data = df.copy().data if isinstance(df, MetricDF) else df
+        base_dict = base_df_data.to_dict()
+        crit = self.crit()
+        crit.is_per_level = False
 
+        res: dict[float, float] = {}
 
-class MicroOptimalConfidenceThreshold(OptimalConfidenceThreshold, MicroMetric):
-    name = "optimal_confidence_threshold"
+        def evaluate(t: float):
+            if t not in res:
+                tarr = np.full(len(base_df_data), t, dtype=np.float64)
+                pred_made = base_dict["confidence"] >= tarr
+                correct = pred_made * (
+                    (base_dict["prediction"] == base_dict["label"]) * 2 - 1
+                )
+                fast_dict = {
+                    **base_dict,
+                    "threshold": tarr,
+                    "prediction_made": pred_made,
+                    "correct": correct,
+                }
+                fast_df = MetricDF(fast_dict, _validated=True)
+                res[t] = crit(fast_df)
+            return res[t]
 
+        with tqdm(
+            total=(self.breaks // self.depth + 1) * self.depth,
+            desc="Optimizing threshold",
+            leave=False,
+            disable=verbose < 1,
+        ) as pbar:
+            smi, sma = 0, 1
+            for _ in range(self.depth):
+                step_size = (sma - smi) / (self.breaks // self.depth)
+                for t in [
+                    smi + i * step_size for i in range(self.breaks // self.depth + 1)
+                ]:
+                    evaluate(t)
+                    pbar.update(1)
+                target_val = self.target(res.values())
+                best = [t for t, v in res.items() if abs(v - target_val) <= self.eps]
+                mi, ma = min(best), max(best)
+                if mi == smi and ma == sma:
+                    break
+                nsmi, nsma = max(0, mi - step_size), min(1, ma + step_size)
+                if nsmi == smi and nsma == sma:
+                    break
+                smi, sma = nsmi, nsma
 
-class MacroOptimalConfidenceThreshold(OptimalConfidenceThreshold, MacroMetric):
-    pass
+        target_val = self.target(res.values())
+        best = [t for t, v in res.items() if abs(v - target_val) <= self.eps]
+
+        if not best:
+            raise RuntimeError(f"No values close to {self.target}(values)={target_val}")
+        if len(best) > 1 and verbose > 0:
+            print(
+                f"Found {len(best)} optimal thresholds at: ["
+                + ", ".join(f"{v:.3f}" for v in sorted(best))
+                + "]"
+            )
+
+        best_mid = (min(best) + max(best)) / 2
+        return sorted(best, key=lambda v: abs(v - best_mid))[0]
 
 
 # Hierarchy Helpers
@@ -287,6 +356,7 @@ class RankError(Metric):
     """Average distance to last common ancestor."""
 
     name: str = "rank_error"
+    columns = ("prediction_level",)
     is_per_level = False
     should_cast_float = False
 
@@ -333,12 +403,11 @@ def get_all_metrics(
         MicroVocabularyCoverage,
         AveragePredictionLevel,
         ConfidenceStats,
-        MicroOptimalConfidenceThreshold,
-        MacroOptimalConfidenceThreshold,
+        OptimalConfidenceThreshold,
         RankError,
     ]
-    metrics = {m_cls.name: m_cls() for m_cls in metric_classes}
-    return dict(filter(metric_filter, metrics.items()))
+    metrics = OrderedDict((m_cls.name, m_cls()) for m_cls in metric_classes)
+    return OrderedDict(filter(metric_filter, metrics.items()))
 
 
 # Run all metrics in one call
@@ -347,6 +416,7 @@ def evaluate_all_metrics(
     known_only: bool = False,
     per_class: bool = False,
     verbose: int = 1,
+    precalculated: dict[str, Any] | None = None,
     **kwargs,
 ) -> dict[str, dict[int, float] | dict[str, tuple[float, float]] | float | Any]:
     metric_kwargs = {}
@@ -354,6 +424,8 @@ def evaluate_all_metrics(
         metric_kwargs["filter"] = True
     if per_class:
         metric_kwargs["aggregate"] = False
+    if precalculated is None:
+        precalculated = {}
 
     metrics_instances = get_all_metrics(**kwargs)
     simple_metrics = get_all_metrics(simple=True)
@@ -364,15 +436,18 @@ def evaluate_all_metrics(
         unit="metric",
         leave=verbose > 1,
         dynamic_ncols=True,
-        disable=verbose == 0,
+        disable=verbose < 1,
     ) as pbar:
         metric_values = dict()
         for metric_name, metric_obj in pbar:
             pbar.set_description_str(f"Computing {metric_name}")
             try:
-                value = retry_with_kwargs(
-                    metric_obj, df, **metric_kwargs, progress=verbose > 0
-                )
+                if metric_name in precalculated:
+                    value = precalculated[metric_name]
+                else:
+                    value = retry_with_kwargs(
+                        metric_obj, df, **metric_kwargs, verbose=verbose
+                    )
             except Exception as e:
                 e.add_note(f"Error in {metric_name}: {metric_obj}")
                 raise
@@ -448,6 +523,7 @@ def main(
     per_class: bool = False,
     verbose: int = 1,
 ):
+    precalculated = {}
     if threshold is not None and optimal:
         raise ValueError(
             "Setting threshold(s) (`threshold`) and choosing the "
@@ -457,16 +533,18 @@ def main(
         file = os.path.join(os.path.dirname(__file__), "demo.csv")
     df = MetricDF.from_source(file)
     if subsample is not None and subsample != 1:
-        df = df.take(df.index[::subsample])
+        df = df.take(df.index[::subsample])  # type: ignore
     if label_filter is not None:
         df = filter_df(df, label_filter)
     if combinations is not None:
         df = df.add_combinations(combinations)
     if optimal:
-        threshold = MicroOptimalConfidenceThreshold()(df)
-        if isinstance(threshold, dict):
+        opt_threshold = OptimalConfidenceThreshold()(df, progress=verbose > 0)
+        precalculated["optimal_confidence_threshold"] = opt_threshold
+        if isinstance(opt_threshold, dict):
             threshold = [
-                float(v) for k, v in sorted(threshold.items(), key=lambda x: x[0])
+                float(v)
+                for k, v in sorted(opt_threshold.items(), key=lambda x: x[0])  # ty:ignore[invalid-argument-type]
             ]
     if threshold is not None:
         lvls = sorted(set(df.level))
@@ -489,7 +567,11 @@ def main(
             strict=False,
         )
     metrics = evaluate_all_metrics(
-        df, known_only=known_only, per_class=per_class, verbose=verbose
+        df,
+        known_only=known_only,
+        per_class=per_class,
+        verbose=verbose,
+        precalculated=precalculated,
     )
     if per_class:
         handle_per_class_metrics(metrics, output, verbose)

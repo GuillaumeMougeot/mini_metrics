@@ -1,11 +1,13 @@
-from itertools import repeat
+from itertools import chain, repeat
 from typing import Any
 
 import numpy as np
 
-from mini_metrics.data import MetricDF
+from mini_metrics.data import COLUMNS, MetricData, MetricDF
 from mini_metrics.helpers import group_map
 from mini_metrics.simple import mean, to_float
+
+mandatory_columns = ("level", "prediction", "label")
 
 
 class Metric:
@@ -16,6 +18,10 @@ class Metric:
     should_filter: bool = True
     should_cast_float: bool = True
     _is_simple: bool | None = None
+    columns: tuple[str, ...] = COLUMNS
+
+    def __init__(self):
+        self.columns = tuple(set(chain(self.columns, mandatory_columns)))
 
     @property
     def is_simple(self) -> bool:
@@ -27,31 +33,35 @@ class Metric:
     def __name__(self) -> str:
         return self.name
 
-    def compute(self, df: MetricDF, *args, **kwargs) -> Any:
+    def compute(self, df: MetricDF | MetricData, *args, **kwargs) -> Any:
         """Core metric calculation logic.
 
         Concrete classes override this to implement calculation on a single slice.
         """
         raise NotImplementedError("Subclasses must implement compute().")
 
-    def __call__(self, df: MetricDF, *args, filter: bool = False, **kwargs) -> Any:
-        """Entry point for evaluating the metric with filtering and level splitting."""
+    def precompute(self, df: MetricDF, filter: bool):
         if self.should_filter and filter:
             df = df[df.known_label]
 
-        levels = [None]
+        if set(self.columns) != set(COLUMNS):
+            df = df.drop(columns=[c for c in COLUMNS if c not in self.columns])
+
+        levels: tuple[None] | list[int] = (None,)
         if self.is_per_level:
             levels = sorted(df.level.unique().tolist())
 
-        slices = {
-            lvl: (df[df.level == lvl] if lvl is not None else df) for lvl in levels
-        }
+        return {lvl: (df[df.level == lvl] if lvl is not None else df) for lvl in levels}
+
+    def __call__(self, df: MetricDF, *args, filter: bool = False, **kwargs) -> Any:
+        """Entry point for evaluating the metric with filtering and level splitting."""
+        slices = self.precompute(df=df, filter=filter)
         results = {k: self.compute(v, *args, **kwargs) for k, v in slices.items()}
 
         if self.should_cast_float and kwargs.get("aggregate", True):
             results = {k: to_float(v) for k, v in results.items()}
 
-        return results if self.is_per_level else results[None]
+        return results.get(None, results)
 
 
 class AveragedMetric(Metric):
@@ -60,6 +70,10 @@ class AveragedMetric(Metric):
     group: str = "label"
     by: str = "label"
     skip_nonfinite: bool = False
+
+    def __init__(self):
+        super().__init__()
+        self.columns = tuple(set(chain(self.columns, (self.by, self.group))))
 
     @property
     def macro(self) -> bool:
@@ -73,7 +87,7 @@ class AveragedMetric(Metric):
         df: MetricDF,
         *args,
         macro: bool = True,
-        progress: bool = True,
+        verbose: int = 1,
         **kwargs,
     ) -> dict[Any, tuple[float, float]]:
         """Computes the metric and weights for each class/group.
@@ -96,7 +110,7 @@ class AveragedMetric(Metric):
             group_idx=map(idxs.get, grps, repeat(empty)),
             func=self.compute,
             *args,
-            progress=progress and len(grps) >= 32,
+            verbose=0 if len(grps) >= 32 else verbose,
             **kwargs,
         )
 
@@ -122,16 +136,7 @@ class AveragedMetric(Metric):
         macro: bool | None = None,
         **kwargs,
     ) -> Any:
-        if self.should_filter and filter:
-            df = df[df.known_label]
-
-        levels = [None]
-        if self.is_per_level:
-            levels = sorted(df.level.unique().tolist())
-
-        slices = {
-            lvl: (df[df.level == lvl] if lvl is not None else df) for lvl in levels
-        }
+        slices = self.precompute(df=df, filter=filter)
         actual_macro = macro if macro is not None else self.macro
 
         results = {}

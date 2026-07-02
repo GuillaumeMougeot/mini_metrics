@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 
-from mini_metrics.data import MetricDF
+from mini_metrics.data import MetricData, MetricDF
 
 R = TypeVar("R")
 _BAD_KW_RE = re.compile(r"unexpected keyword argument '([^']+)'")
@@ -198,16 +198,13 @@ def unnest_class(
 
 
 def df_from_dict(
-    metrics: dict[str, float]
-    | dict[str, dict[int, float]]
-    | dict[str, dict[str, list[float] | tuple[float, ...]]]
-    | dict[str, dict[int, dict[str, float]]],
+    metrics: dict,
     keys: Iterable[str],
     per_class: bool = False,
     verbose: int = 1,
 ) -> pd.DataFrame:
     """Creates a pandas dataframe from polymorphic metrics dictionaries."""
-    target_keys = set(keys)
+    target_keys = sorted(set(keys), key=list(keys).index)
     filtered_metrics = {k: v for k, v in metrics.items() if k in target_keys}
     if not filtered_metrics:
         return pd.DataFrame()
@@ -238,7 +235,7 @@ def df_from_dict(
         # Standard leveled parsing
         first_val = next(iter(filtered_metrics.values()))
         if isinstance(first_val, dict):
-            levels = sorted(map(int, first_val.keys()))
+            levels = sorted(map(lambda x: int(x), first_val.keys()))
         else:
             levels = [0]
 
@@ -264,17 +261,17 @@ def df_from_dict(
             print(f"{k} ==> {val}")
 
     return pd.DataFrame.from_dict(df_data).reindex(
-        labels=[*id_cols, *sorted(target_keys)], axis="columns"
+        labels=[*id_cols, *target_keys], axis="columns"
     )
 
 
 # General
 def group_map[R](
-    df: MetricDF,
+    df: MetricDF | MetricData,
     group_idx: list[np.ndarray],
-    func: Callable[Concatenate[MetricDF, ...], R],
+    func: Callable[Concatenate[MetricData, ...], R],
     *args,
-    progress: bool = False,
+    verbose: int = 1,
     **kwargs,
 ) -> Iterable[R]:
     """Function to iterate over groups of non-contiguous rows (indexes)
@@ -301,12 +298,11 @@ def group_map[R](
     counts = np.asarray(lengths, dtype=np.int64)
 
     # single reindex, then contiguous slices
-    df_sorted = df.take(order)
+    data = (df.data if isinstance(df, MetricDF) else df).take(order)
 
     def _gen():
-        iloc = df_sorted.iloc
         it = zip(starts, counts)
-        if progress:
+        if verbose > 1:
             it = tqdm(
                 it,
                 total=len(blocks),
@@ -316,25 +312,28 @@ def group_map[R](
                 dynamic_ncols=True,
             )
         for s, c in it:
-            yield func(iloc[s : s + c], *args, **kwargs)
+            yield func(data.slice(s, s + c), *args, **kwargs)
 
     return _gen()
 
 
-def filter_df(df: MetricDF, filter: str | list[str]):
+def filter_df(df: MetricDF, filter: str | list[str], verbose: int = 1):
     if isinstance(filter, str):
         if os.path.isfile(filter):
             with open(filter) as f:
                 content = [line for line in map(str.strip, f.readlines()) if line]
                 if len(content) == 1:
                     content = content[0].split(",")
+            filter = content
         else:
             filter = [filter]
 
     def _match(_df: MetricDF):
-        def _inner(__df: MetricDF):
-            __df = __df[__df.level == 0]
-            return False if len(__df) == 0 else __df.label.item() in filter
+        def _inner(__df: MetricData):
+            assert __df.level is not None
+            lvl_mask = __df.level == 0
+            label = __df.label and __df.label[lvl_mask]
+            return False if len(__df) == 0 or label is None else label.item() in filter
 
         idx = _df.groupby("instance_id", sort=False, observed=True).indices
         idx = [
@@ -342,7 +341,7 @@ def filter_df(df: MetricDF, filter: str | list[str]):
             for grp in df.instance_id.unique()
         ]
         out = []
-        for i, v in zip(idx, group_map(_df, idx, _inner, progress=True)):
+        for i, v in zip(idx, group_map(_df, idx, _inner, verbose=verbose)):
             if v:
                 out.append(i)
         return np.concatenate(out)
