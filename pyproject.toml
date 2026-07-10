@@ -1,6 +1,6 @@
 [project]
 name = "mini_metrics"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
   "numpy",
   "pandas",
@@ -33,9 +33,11 @@ Repository = "https://github.com/GuillaumeMougeot/mini_metrics"
 
 [project.scripts]
 mm_metrics = "mini_metrics.metrics:run"
+mm_plots = "mini_metrics.plots:run"
 
 [tool.ruff]
 target-version = "py312"
+line-length = 110
 
 [tool.ruff.lint]
 # Enable core checks, imports, pyupgrade, and pydocstyle
@@ -89,6 +91,9 @@ wrap-descriptions = 0
 
 [dependency-groups]
 dev = [
+    "ipykernel",
+    "ipywidgets",
+    "jupyter",
     "pandas-stubs",
     "ruff>=0.14.5",
     "pytest>=8.0.0",

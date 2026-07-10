@@ -8,6 +8,7 @@ from collections import Counter, OrderedDict
 from collections.abc import Callable, Iterable
 from itertools import chain
 from math import isfinite
+from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
@@ -40,14 +41,13 @@ class Accuracy(AveragedMetric):
 
     def compute(self, df: MetricDF | MetricData, remove_abstain: bool = True):
         corr = df.correct
-        pred = df.prediction_made
         assert corr is not None
-        assert pred is not None
         if remove_abstain:
-            corr = corr[pred]
-        if len(corr) == 0:
-            return 0.0
-        return np.mean(corr == 1).item()
+            corr = corr[corr != 0]
+        n = len(corr)
+        if n == 0:
+            return 0.0, n
+        return np.mean(corr == 1).item(), n
 
 
 class MacroAccuracy(Accuracy, MacroMetric):
@@ -106,16 +106,17 @@ class F1(AveragedMetric):
     def compute_all_groups(
         self, df: MetricDF, *args, macro: bool = True, **kwargs
     ) -> dict[str, tuple[float, float]]:
-        Ps = Precision().compute_all_groups(df, *args, macro=macro, **kwargs)
-        Rs = Recall().compute_all_groups(df, *args, macro=macro, **kwargs)
+        Ps = MicroPrecision().compute_all_groups(df, *args, macro=macro, **kwargs)
+        Rs = MicroRecall().compute_all_groups(df, *args, macro=macro, **kwargs)
 
         clss = []
-        ws = []
-        f1s = []
+        ws: list[float] = []
+        f1s: list[float] = []
         for cls in Ps.keys():
             P, R = Ps[cls][0], Rs[cls][0]
+            w = Ps[cls][1]
             clss.append(cls)
-            ws.append(1.0 if macro else Ps[cls][1])
+            ws.append(1.0 if macro else w)
             if not isfinite(P) or not isfinite(R):
                 f1 = float("nan")
             elif P == 0 or R == 0:
@@ -163,7 +164,8 @@ class _TheilU(AveragedMetric):
             if CS[idx] <= 0:
                 continue
             val = float(1 - eCS[idx].item() / eN.item())
-            w = 1.0 if macro else float(CS[idx].item())
+            w = float(CS[idx].item())
+            w = (1.0 if macro else w)
             results[c] = (val, w)
         return results
 
@@ -186,7 +188,7 @@ class Coverage(AveragedMetric):
     def compute(self, df: MetricDF | MetricData):
         pm = df.prediction_made
         assert pm is not None
-        return np.mean(pm)
+        return np.mean(pm), len(pm)
 
 
 class MicroCoverage(Coverage, MicroMetric):
@@ -204,7 +206,7 @@ class VocabularyCoverage(AveragedMetric):
     def compute(self, df: MetricDF | MetricData):
         kn = df.known_label
         assert kn is not None
-        return np.mean(kn)
+        return np.mean(kn), len(kn)
 
 
 class MicroVocabularyCoverage(VocabularyCoverage, MicroMetric):
@@ -216,14 +218,19 @@ class AveragePredictionLevel(Metric):
     """Average Prediction Level."""
 
     name: str = "average_prediction_level"
-    columns = ("prediction_level",)
+    columns = ("prediction_level", "prediction_made")
     is_per_level = False
-    should_filter = False
 
     def compute(self, df: MetricDF | MetricData):
         pl = df.prediction_level
+        pm = df.prediction_made
         assert pl is not None
-        return np.mean(pl)
+        assert pm is not None
+        pl = pl[pm]
+        n = len(pl)
+        if n == 0:
+            return float("nan"), n
+        return np.mean(pl), n
 
 
 # Mean Confidence of Correct vs Incorrect Predictions
@@ -241,11 +248,9 @@ class ConfidenceStats(Metric):
         confidence = df.confidence
         assert confidence is not None
         return {
-            k: np.mean(confidence[cm]).item()
-            if np.any(cm := correct == v)
-            else float("nan")
+            k: np.mean(confidence[cm]).item() if np.any(cm := correct == v) else float("nan")
             for k, v in outcomes.items()
-        }
+        }, len(correct)
 
 
 # Optimal Confidence Threshold
@@ -258,7 +263,7 @@ class OptimalConfidenceThreshold(Metric):
     target: Callable[[Iterable[float]], float] = max
     columns = (*(set(COLUMNS) - set(OPTIONAL_COLUMNS)), "known_label")
 
-    def compute(self, df: MetricDF | MetricData, verbose: int = 1) -> float:
+    def compute(self, df: MetricDF | MetricData, verbose: int = 1) -> tuple[float, int]:
         base_df_data = df.copy().data if isinstance(df, MetricDF) else df
         base_dict = base_df_data.to_dict()
         crit = self.crit()
@@ -270,9 +275,7 @@ class OptimalConfidenceThreshold(Metric):
             if t not in res:
                 tarr = np.full(len(base_df_data), t, dtype=np.float64)
                 pred_made = base_dict["confidence"] >= tarr
-                correct = pred_made * (
-                    (base_dict["prediction"] == base_dict["label"]) * 2 - 1
-                )
+                correct = pred_made * ((base_dict["prediction"] == base_dict["label"]) * 2 - 1)
                 fast_dict = {
                     **base_dict,
                     "threshold": tarr,
@@ -286,15 +289,13 @@ class OptimalConfidenceThreshold(Metric):
         with tqdm(
             total=(self.breaks // self.depth + 1) * self.depth,
             desc="Optimizing threshold",
-            leave=False,
+            leave=True,
             disable=verbose < 1,
         ) as pbar:
             smi, sma = 0, 1
             for _ in range(self.depth):
                 step_size = (sma - smi) / (self.breaks // self.depth)
-                for t in [
-                    smi + i * step_size for i in range(self.breaks // self.depth + 1)
-                ]:
+                for t in [smi + i * step_size for i in range(self.breaks // self.depth + 1)]:
                     evaluate(t)
                     pbar.update(1)
                 target_val = self.target(res.values())
@@ -320,7 +321,7 @@ class OptimalConfidenceThreshold(Metric):
             )
 
         best_mid = (min(best) + max(best)) / 2
-        return sorted(best, key=lambda v: abs(v - best_mid))[0]
+        return sorted(best, key=lambda v: abs(v - best_mid))[0], len(base_df_data)
 
 
 # Hierarchy Helpers
@@ -336,9 +337,7 @@ def rank_distance(x: str, y: str, c2p: dict[str, str]):
         return 0
     xp = class_path(x, c2p)
     yp = class_path(y, c2p)
-    hit = max(
-        [i for i, (a, b) in enumerate(zip(xp[::-1], yp[::-1])) if a == b], default=-1
-    )
+    hit = max([i for i, (a, b) in enumerate(zip(xp[::-1], yp[::-1])) if a == b], default=-1)
     return min(len(xp), len(yp)) - (hit + 1)
 
 
@@ -362,24 +361,18 @@ class RankError(Metric):
 
     def compute(self, df: MetricDF):
         if (combinations := getattr(df, "_class_combinations", None)) is None:
-            return None
+            return None, 0
         child2parent = child2parent_from_combinations(combinations)
         df = df[df.level == df.prediction_level]
-        errs = OrderedDict(
-            (lvl, []) for lvl in range(int(df.prediction_level.unique().max()) + 1)
-        )
+        errs = OrderedDict((lvl, []) for lvl in range(int(df.prediction_level.unique().max()) + 1))
         for x, y, lvl in zip(df.prediction, df.label, df.prediction_level):
             errs[lvl].append(rank_distance(x, y, child2parent))
         avg = mean(chain.from_iterable(errs.values()))
-        counts = OrderedDict(
-            (k, OrderedDict(sorted(Counter(v).items()))) for k, v in errs.items()
-        )
-        return {"average": avg, "counts": counts}
+        counts = OrderedDict((k, OrderedDict(sorted(Counter(v).items()))) for k, v in errs.items())
+        return {"average": avg, "counts": counts}, len(df)
 
 
-def get_all_metrics(
-    pattern: str | re.Pattern | None = None, simple: bool | None = None
-):
+def get_all_metrics(pattern: str | re.Pattern | None = None, simple: bool | None = None):
     def metric_filter(name_obj: tuple[str, Metric]):
         name, obj = name_obj
         retval = True
@@ -424,7 +417,7 @@ def evaluate_all_metrics(
         metric_kwargs["filter"] = True
     if per_class:
         metric_kwargs["aggregate"] = False
-    if precalculated is None:
+    if precalculated is None or per_class:
         precalculated = {}
 
     metrics_instances = get_all_metrics(**kwargs)
@@ -434,7 +427,7 @@ def evaluate_all_metrics(
         metrics_instances.items(),
         desc="Computing metrics",
         unit="metric",
-        leave=verbose > 1,
+        leave=True,
         dynamic_ncols=True,
         disable=verbose < 1,
     ) as pbar:
@@ -445,9 +438,7 @@ def evaluate_all_metrics(
                 if metric_name in precalculated:
                     value = precalculated[metric_name]
                 else:
-                    value = retry_with_kwargs(
-                        metric_obj, df, **metric_kwargs, verbose=verbose
-                    )
+                    value = retry_with_kwargs(metric_obj, df, **metric_kwargs, verbose=verbose)
             except Exception as e:
                 e.add_note(f"Error in {metric_name}: {metric_obj}")
                 raise
@@ -493,16 +484,18 @@ def handle_per_class_metrics(
     output: str | None = None,
     verbose: int = 1,
 ):
-    if verbose >= 2:
+    if verbose > 2:
         print(pretty_string_dict(metrics))
         print()
     K = [k for k in get_all_metrics(simple=True) if k not in PER_CLASS_EXCEPTIONS]
     df = df_from_dict(metrics, K, per_class=True, verbose=verbose)
-    if verbose >= 1:
-        print("PER-CLASS METRIC TABLE")
+    if verbose > 1:
+        print("\nPER-CLASS METRIC TABLE")
         print(df)
     if output:
         out_csv = f"{output}.csv"
+        if verbose > 1:
+            print(f"Saving per-class metrics at: {out_csv}")
         if os.path.exists(out_csv):
             if verbose > 0:
                 print("Removed old", out_csv)
@@ -510,42 +503,52 @@ def handle_per_class_metrics(
         df.to_csv(out_csv, index=False)
 
 
-def main(
-    file: str | None = None,
-    output: str | None = None,
+def evaluate_file(
+    source: str | Path | MetricDF,
     combinations: str | None = None,
     optimal: bool = False,
     threshold: float | list[float] | None = None,
-    all: bool = False,
     known_only: bool = False,
     label_filter: str | list[str] | None = None,
     subsample: int | None = None,
     per_class: bool = False,
     verbose: int = 1,
-):
-    precalculated = {}
+) -> dict:
+    """Runs the metric evaluation pipeline on a single file path or existing MetricDF.
+
+    Returns the evaluated metrics dictionary without performing disk I/O.
+    """
     if threshold is not None and optimal:
         raise ValueError(
             "Setting threshold(s) (`threshold`) and choosing the "
             "thresholds dynamically (`optimal`) is mutually exclusive."
         )
-    if file is None:
-        file = os.path.join(os.path.dirname(__file__), "demo.csv")
-    df = MetricDF.from_source(file)
+
+    if isinstance(source, MetricDF):
+        df = source
+    elif isinstance(source, MetricData):
+        df = MetricDF(source)
+    else:
+        df = MetricDF.from_source(source)
+
+    precalculated = {}
+
     if subsample is not None and subsample != 1:
         df = df.take(df.index[::subsample])  # type: ignore
     if label_filter is not None:
         df = filter_df(df, label_filter)
     if combinations is not None:
         df = df.add_combinations(combinations)
+
     if optimal:
-        opt_threshold = OptimalConfidenceThreshold()(df, progress=verbose > 0)
+        df, calib = df.split((0.9, 0.1))
+        if verbose > 0:
+            print(f"Computing optimal threshold on {len(calib)} samples, keeping {len(df)} for metrics.")
+        opt_threshold = OptimalConfidenceThreshold()(calib, verbose=verbose)
         precalculated["optimal_confidence_threshold"] = opt_threshold
         if isinstance(opt_threshold, dict):
-            threshold = [
-                float(v)
-                for k, v in sorted(opt_threshold.items(), key=lambda x: x[0])  # ty:ignore[invalid-argument-type]
-            ]
+            threshold = [float(v) for _, v in sorted(opt_threshold.items(), key=lambda x: x[0])]
+
     if threshold is not None:
         lvls = sorted(set(df.level))
         if isinstance(threshold, list) and len(threshold) == 1:
@@ -566,6 +569,8 @@ def main(
             df.drop(["prediction_level", "prediction_made", "correct"], axis=1),
             strict=False,
         )
+
+    # 3. Metric Evaluation
     metrics = evaluate_all_metrics(
         df,
         known_only=known_only,
@@ -573,46 +578,131 @@ def main(
         verbose=verbose,
         precalculated=precalculated,
     )
-    if per_class:
-        handle_per_class_metrics(metrics, output, verbose)
-        return
+
+    return metrics
+
+
+def main(
+    files: str | Path | list[str | Path] | None = None,
+    output_name: str | None = None,
+    output_dir: str | None = None,
+    combinations: str | None = None,
+    optimal: bool = False,
+    threshold: float | list[float] | None = None,
+    all: bool = False,
+    known_only: bool = False,
+    label_filter: str | list[str] | None = None,
+    subsample: int | None = None,
+    per_class: bool = False,
+    verbose: int = 1,
+):
+    if files is None:
+        files = [os.path.join(os.path.dirname(__file__), "demo.csv")]
+    elif not isinstance(files, (list, tuple)):
+        files = [files]
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
     simple_metrics = get_all_metrics(simple=True).keys()
-    if all:
-        if verbose > 0:
-            print(pretty_string_dict(metrics))
-            print()
-        if output:
-            out_json = f"{output}.json"
-            if os.path.exists(out_json):
+    multi_file = len(files) > 1
+    
+    with tqdm(files, desc="Processing files", leave=True, disable=not multi_file or verbose < 1) as pbar:
+        for file_path in pbar:
+            base_file = os.path.splitext(os.path.basename(re.sub(r"\.zip", "", str(file_path), flags=re.IGNORECASE)))[0]
+
+            output_path = file_out_name = None
+            if output_dir:
+                if not output_name:
+                    file_out_name = f"{base_file}_metrics"
+                elif multi_file:
+                    file_out_name = f"{base_file}_{output_name}"
+                else:
+                    file_out_name = output_name
+                output_path = os.path.join(output_dir, file_out_name)
+
+            metrics = evaluate_file(
+                source=file_path,
+                combinations=combinations,
+                optimal=optimal,
+                threshold=threshold,
+                known_only=known_only,
+                label_filter=label_filter,
+                subsample=subsample,
+                per_class=per_class,
+                verbose=verbose,
+            )
+
+            if per_class:
+                per_class_output = file_out_name and f"{file_out_name}_per_class"
+                handle_per_class_metrics(metrics, per_class_output, verbose)
+                continue
+
+            if all:
                 if verbose > 0:
-                    print("Removed old", out_json)
-                os.remove(out_json)
-            with open(out_json, "w", encoding="utf8", newline=os.linesep) as f:
-                json.dump(metrics, f)
-    if verbose > 0:
-        print("METRIC TABLE")
-        print(format_table(metrics, keys=simple_metrics))
-    if output:
-        out_csv = f"{output}.csv"
-        if os.path.exists(out_csv):
+                    print(pretty_string_dict(metrics))
+                    print()
+                if output_path:
+                    out_json = f"{output_path}.json"
+                    if verbose > 1:
+                        print(f"Saving all metrics at: {out_json}")
+                    if os.path.exists(out_json):
+                        if verbose > 0:
+                            print("Removed old", out_json)
+                        os.remove(out_json)
+                    with open(out_json, "w", encoding="utf8", newline=os.linesep) as f:
+                        json.dump(metrics, f)
+
             if verbose > 0:
-                print("Removed old", out_csv)
-            os.remove(out_csv)
-        df_from_dict(metrics, simple_metrics, verbose=verbose).to_csv(
-            out_csv, index=False
-        )
+                print(f"\nMETRIC TABLE[{output_path if output_path else file_path}]")
+                print(format_table(metrics, keys=simple_metrics))
+
+            if output_path:
+                out_csv = f"{output_path}.csv"
+                if verbose > 1:
+                    print(f"Saving tabular metrics at: {out_csv}")
+                if os.path.exists(out_csv):
+                    if verbose > 0:
+                        print("Removed old", out_csv)
+                    os.remove(out_csv)
+                df_from_dict(metrics, simple_metrics, verbose=verbose).to_csv(out_csv, index=False)
 
 
 def cli():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--file", help="Path to the result files.")
+    parser = argparse.ArgumentParser(
+        description="Calculate and evaluate hierarchy metrics across one or more files."
+    )
+    parser.add_argument(
+        "-f",
+        "--files",
+        type=str,
+        nargs="+",
+        default=None,
+        required=False,
+        help="Path(s) to one or more result files. Supports bash wildcards (e.g., -f results/*.csv). Evaluated separately.",
+    )
     parser.add_argument(
         "-o",
         "--output",
+        dest="save_output",
+        action="store_true",
+        help="Flag to enable saving output files (.csv and .json) for each input file.",
+    )
+    parser.add_argument(
+        "-n",
+        "--output-name",
         type=str,
         default=None,
         required=False,
-        help="Name of the output file(s) (table and JSON, if --all).",
+        help="Custom base name for exported files. If multiple inputs are passed, input filenames are appended to prevent overwrites. Implies --output.",
+    )
+    parser.add_argument(
+        "-d",
+        "--output-dir",
+        type=str,
+        default=None,
+        required=False,
+        help="Directory to save output files into. Created automatically if it does not exist. Implies --output.",
     )
     parser.add_argument(
         "-c",
@@ -620,13 +710,13 @@ def cli():
         type=str,
         default=None,
         required=False,
-        help="Path to a CSV file with columns for each hierarchy level, where each row is a leaf-species and it's parents.",
+        help="Path to a CSV file with columns for each hierarchy level, where each row is a leaf-species and its parents.",
     )
     parser.add_argument(
         "-O",
         "--optimal",
         action="store_true",
-        help="Use dynamically calculated optimal confidence threshold for metrics (overrides optional threshold column in file).",
+        help="Use dynamically calculated optimal confidence threshold for metrics.",
     )
     parser.add_argument(
         "-t",
@@ -635,10 +725,10 @@ def cli():
         nargs="+",
         default=None,
         required=False,
-        help="Set the confidence threshold(s) manually (overrides optional threshold column in file).",
+        help="Set the confidence threshold(s) manually.",
     )
     parser.add_argument(
-        "-a",
+        "-A",
         "--all",
         action="store_true",
         help="Print full metric results, otherwise only the metric table (default).",
@@ -654,20 +744,21 @@ def cli():
         "--label_filter",
         type=str,
         nargs="+",
-        help="A list of or a file containg (level 0/species) labels to subset the results by.",
+        help="A list of or a file containing (level 0/species) labels to subset the results by.",
     )
     parser.add_argument(
         "--subsample",
         type=int,
         default=None,
         required=False,
-        help="Subsample data (for faster debugging probably) before doing anything else.",
+        help="Subsample data before doing anything else (useful for faster debugging).",
     )
     parser.add_argument(
+        "-P",
         "--per_class",
         action="store_true",
         required=False,
-        help="Compute per-class statistics",
+        help="Compute per-class statistics.",
     )
     parser.add_argument(
         "-v",
@@ -675,10 +766,14 @@ def cli():
         type=int,
         default=1,
         required=False,
-        help="Verbosity - 0 (silent), default = 1 (info & summary), 2 (debug - not implemented!)",
+        help="Verbosity: 0 (silent), 1 (info & summary, default), 2 (debug).",
     )
-    args = parser.parse_args()
-    return vars(args)
+
+    args = vars(parser.parse_args())
+    if (args.pop("save_output", False) or args["output_name"]) and not args.get("output_dir", False):
+        args["output_dir"] = "."
+    
+    return args
 
 
 def run():

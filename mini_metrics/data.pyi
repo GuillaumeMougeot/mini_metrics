@@ -1,4 +1,6 @@
 # metricdf.pyi
+from collections.abc import Sequence
+from pathlib import Path
 from typing import IO, Any, Self, override
 
 import numpy as np
@@ -74,8 +76,15 @@ class MetricDF(pd.DataFrame):
         **kwargs: Any,
     ) -> MetricDF: ...
     @classmethod
-    def from_source(cls, src: str | IO[bytes]) -> MetricDF: ...
-    def add_combinations(self, src: str | list[tuple[str, ...]]) -> MetricDF: ...
+    def from_source(cls, src: str | Path | IO[bytes]) -> MetricDF: ...
+    def add_combinations(self, src: str | Path | list[tuple[str, ...]]) -> MetricDF: ...
+    def split(
+        self,
+        proportions: Sequence[float],
+        strata: Sequence[str] | None = ("label",),
+        seed: int | None = None,
+        shuffle: bool = True,
+    ) -> list[MetricDF]: ...
     @property
     def instance_id(self) -> pd.Series[int]: ...
     @property

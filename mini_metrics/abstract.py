@@ -19,6 +19,7 @@ class Metric:
     should_cast_float: bool = True
     _is_simple: bool | None = None
     columns: tuple[str, ...] = COLUMNS
+    drop_weight: bool = True
 
     def __init__(self):
         self.columns = tuple(set(chain(self.columns, mandatory_columns)))
@@ -33,35 +34,42 @@ class Metric:
     def __name__(self) -> str:
         return self.name
 
-    def compute(self, df: MetricDF | MetricData, *args, **kwargs) -> Any:
+    def compute(self, df: MetricDF | MetricData, *args, **kwargs) -> tuple[Any, int]:
         """Core metric calculation logic.
 
         Concrete classes override this to implement calculation on a single slice.
         """
         raise NotImplementedError("Subclasses must implement compute().")
 
-    def precompute(self, df: MetricDF, filter: bool):
+    def precompute(self, df: MetricDF, filter: bool) -> dict[None, MetricDF] | dict[int, MetricDF]:
         if self.should_filter and filter:
             df = df[df.known_label]
 
         if set(self.columns) != set(COLUMNS):
             df = df.drop(columns=[c for c in COLUMNS if c not in self.columns])
 
-        levels: tuple[None] | list[int] = (None,)
         if self.is_per_level:
-            levels = sorted(df.level.unique().tolist())
+            return {lvl: (df[df.level == lvl] if lvl is not None else df) for lvl in sorted(df.level.unique().tolist())} 
+        
+        return {None: df}
 
-        return {lvl: (df[df.level == lvl] if lvl is not None else df) for lvl in levels}
-
-    def __call__(self, df: MetricDF, *args, filter: bool = False, **kwargs) -> Any:
+    def __call__(self, df: MetricDF, *args, filter: bool = False, **kwargs) -> dict[int, tuple[Any, int]] | tuple[Any, int]:
         """Entry point for evaluating the metric with filtering and level splitting."""
         slices = self.precompute(df=df, filter=filter)
-        results = {k: self.compute(v, *args, **kwargs) for k, v in slices.items()}
+        results: dict[None, tuple[Any, int]] | dict[int, tuple[Any, int]] = {k: self.compute(v, *args, **kwargs) for k, v in slices.items()}
 
         if self.should_cast_float and kwargs.get("aggregate", True):
-            results = {k: to_float(v) for k, v in results.items()}
+            results = {k: (to_float(v), w) for k, (v, w) in results.items()}
 
-        return results.get(None, results)
+        retval: tuple[Any, int] | dict[int, tuple[Any, int]] = results.get(None, results)
+        
+        if self.drop_weight:
+            if isinstance(retval, dict):
+                retval = {k: v for k, (v, _) in retval.items()}
+            else:
+                retval = retval[0]
+        
+        return retval
 
 
 class AveragedMetric(Metric):
@@ -70,6 +78,7 @@ class AveragedMetric(Metric):
     group: str = "label"
     by: str = "label"
     skip_nonfinite: bool = False
+    drop_weight: bool = False
 
     def __init__(self):
         super().__init__()
@@ -98,9 +107,8 @@ class AveragedMetric(Metric):
         """
         grps = list(getattr(df, self.group).unique())
         if len(grps) <= 1:
-            v = self.compute(df, *args, **kwargs)
-            w = float(len(df) if not macro else 1.0)
-            return {grps[0] if grps else None: (float(v), w)}
+            v, w = self.compute(df, *args, **kwargs)
+            return {grps[0] if grps else None: (float(v), float(1.0 if macro else w))}
 
         idxs = df.groupby(self.by, sort=False, observed=True).indices
         empty = np.empty((0,), dtype=np.int64)
@@ -113,19 +121,7 @@ class AveragedMetric(Metric):
             verbose=0 if len(grps) >= 32 else verbose,
             **kwargs,
         )
-
-        weights = (
-            repeat(1.0)
-            if macro
-            else (
-                getattr(df, self.group)
-                .value_counts(sort=False)
-                .reindex(grps, fill_value=0)
-                .to_numpy(dtype=float)
-            )
-        )
-
-        return {g: (float(v), float(w)) for g, v, w in zip(grps, values, weights)}
+        return {g: (float(v), float(1.0 if macro else w)) for g, (v, w) in zip(grps, values)}
 
     def __call__(
         self,
@@ -141,15 +137,11 @@ class AveragedMetric(Metric):
 
         results = {}
         for lvl, slice_df in slices.items():
-            group_results = self.compute_all_groups(
-                slice_df, *args, macro=actual_macro, **kwargs
-            )
+            group_results = self.compute_all_groups(slice_df, *args, macro=actual_macro, **kwargs)
             if aggregate:
                 values = [v for v, w in group_results.values()]
                 weights = [w for v, w in group_results.values()]
-                results[lvl] = mean(
-                    values, W=weights, skip_nonfinite=self.skip_nonfinite
-                )
+                results[lvl] = mean(values, W=weights, skip_nonfinite=self.skip_nonfinite)
             else:
                 results[lvl] = group_results
 
@@ -166,11 +158,7 @@ class MicroMetric(AveragedMetric):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if (
-            "name" not in cls.__dict__
-            and hasattr(cls, "name")
-            and not cls.name.startswith("micro_")
-        ):
+        if "name" not in cls.__dict__ and hasattr(cls, "name") and not cls.name.startswith("micro_"):
             cls.name = f"micro_{cls.name}"
 
 
@@ -181,9 +169,5 @@ class MacroMetric(AveragedMetric):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if (
-            "name" not in cls.__dict__
-            and hasattr(cls, "name")
-            and not cls.name.startswith("macro_")
-        ):
+        if "name" not in cls.__dict__ and hasattr(cls, "name") and not cls.name.startswith("macro_"):
             cls.name = f"macro_{cls.name}"

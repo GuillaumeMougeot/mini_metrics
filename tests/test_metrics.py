@@ -14,12 +14,11 @@ def test_main_with_example_files(tmp_path, examples_dir, filename_base):
     input_file = examples_dir / f"{filename_base}{POST_FIX}"
     assert input_file.exists()
 
-    output = tmp_path / filename_base
-    output_file = tmp_path / (filename_base + ".csv")
-    main(file=input_file, output=output)
+    output_file = tmp_path / f"{filename_base}_metrics.csv"
+    main(files=input_file, output_dir=tmp_path)
     assert output_file.exists()
 
-    expected_file = examples_dir / "expected" / f"{filename_base}.csv"
+    expected_file = examples_dir / "expected" / f"{filename_base}_metrics.csv"
 
     # Read both files
     with open(output_file) as f_out, open(expected_file) as f_exp:

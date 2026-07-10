@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import os
+from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass, fields
 from itertools import chain, repeat
+from pathlib import Path
 from typing import IO, override
 from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
+
+from mini_metrics.simple import split_values
 
 
 def first_nonzero_ordered(mask: np.ndarray, arr: np.ndarray):
@@ -23,10 +28,7 @@ def group_arr(arr: np.ndarray):
     sorted_arr = arr[inverse]
     split_indices = np.flatnonzero(np.diff(sorted_arr)) + 1
     groups = np.split(inverse, split_indices)
-    return [
-        (val, idxs)
-        for val, idxs in zip(sorted_arr[np.concatenate(([0], split_indices))], groups)
-    ]
+    return [(val, idxs) for val, idxs in zip(sorted_arr[np.concatenate(([0], split_indices))], groups)]
 
 
 _pd_nullable: dict[type, str] = {
@@ -119,29 +121,17 @@ class MetricData:
     def slice(self, start: int, end: int):
         """Zero-copy slice of all underlying arrays that are present."""
         return type(self)(
-            **{
-                f.name: val[start:end]
-                for f in fields(self)
-                if (val := getattr(self, f.name)) is not None
-            }
+            **{f.name: val[start:end] for f in fields(self) if (val := getattr(self, f.name)) is not None}
         )
 
     def take(self, indices: np.ndarray):
         """Advanced indexing across all arrays that are present."""
         return type(self)(
-            **{
-                f.name: val[indices]
-                for f in fields(self)
-                if (val := getattr(self, f.name)) is not None
-            }
+            **{f.name: val[indices] for f in fields(self) if (val := getattr(self, f.name)) is not None}
         )
 
     def to_dict(self) -> dict[str, np.ndarray]:
-        return {
-            f.name: value
-            for f in fields(self)
-            if (value := getattr(self, f.name)) is not None
-        }
+        return {f.name: value for f in fields(self) if (value := getattr(self, f.name)) is not None}
 
 
 class MetricDF(pd.DataFrame):
@@ -185,7 +175,9 @@ class MetricDF(pd.DataFrame):
     _default = COLUMNS_DEFAULT()
 
     @classmethod
-    def from_source(cls, src: str | IO[bytes]) -> MetricDF:
+    def from_source(cls, src: str | Path | IO[bytes]) -> MetricDF:
+        if isinstance(src, Path):
+            src = str(src.resolve())
         if isinstance(src, str) and os.path.splitext(src)[1].lower().endswith("zip"):
             with ZipFile(src) as zp:
                 if len(zp.filelist) != 1:
@@ -217,9 +209,7 @@ class MetricDF(pd.DataFrame):
                 setattr(self, field, getattr(other, field, default))
         return super().__finalize__(other, method=method)
 
-    def __init__(
-        self, data=None, *, coerce: bool = True, strict: bool = True, **kwargs
-    ):
+    def __init__(self, data=None, *, coerce: bool = True, strict: bool = True, **kwargs):
         if isinstance(data, (MetricDF, pd.DataFrame)):
             data.reset_index(drop=True)
         if isinstance(data, MetricDF):
@@ -239,21 +229,15 @@ class MetricDF(pd.DataFrame):
             self._validated = True
             expected_columns = [col for col, _ in self._schema]
             if strict and not all(
-                (
-                    e == o
-                    for e, o in zip(expected_columns, chain(self.columns, repeat(None)))
-                )
+                (e == o for e, o in zip(expected_columns, chain(self.columns, repeat(None))))
             ):
                 self.__init__(
                     self.reindex(columns=expected_columns),
-                    **self.metadata(),
+                    **self.metadata(),  # type: ignore
                 )
 
     def metadata(self):
-        return {
-            k: getattr(self, k, self._metadata_default.get(k, None))
-            for k in self._metadata
-        }
+        return {k: getattr(self, k, self._metadata_default.get(k, None)) for k in self._metadata}
 
     def invalid_schema(self, msg: str):
         raise RuntimeError(f"Invalid data schema:\n{msg}")
@@ -281,8 +265,7 @@ class MetricDF(pd.DataFrame):
                 actual_pos = self.columns.get_loc(col)
                 if actual_pos != expected_loc:
                     self.invalid_schema(
-                        f"Found column: {col} in the wrong location "
-                        f"{actual_pos}, expected {expected_loc}"
+                        f"Found column: {col} in the wrong location {actual_pos}, expected {expected_loc}"
                     )
 
             # Check dtype
@@ -290,11 +273,10 @@ class MetricDF(pd.DataFrame):
             if self.dtypes[col].name != dtype:
                 if not coerce:
                     self.invalid_schema(
-                        f"Found column: {col} with invalid dtype "
-                        f"{self.dtypes[col]}, expected {dtype}"
+                        f"Found column: {col} with invalid dtype {self.dtypes[col]}, expected {dtype}"
                     )
                 else:
-                    self[col] = self[col].astype(dtype)
+                    self[col] = self[col].astype(dtype)  # type: ignore
 
             expected_loc += 1
 
@@ -302,11 +284,11 @@ class MetricDF(pd.DataFrame):
         for col in lazy_cols:
             self[col] = self._default(self, col)
 
-    def add_combinations(self, src: str | list[tuple[str, ...]]) -> MetricDF:
+    def add_combinations(self, src: str | Path | list[tuple[str, ...]]) -> MetricDF:
         if self.empty:
             return self
 
-        if isinstance(src, str):
+        if isinstance(src, (str, Path)):
             data = pd.read_csv(src)
             levels = list(map(str, data.columns))
             combinations = [row.tolist() for _, row in data.iterrows()]
@@ -319,9 +301,7 @@ class MetricDF(pd.DataFrame):
 
         cur_lvls = len(self.level.unique())
         if cur_lvls == 0:
-            raise ValueError(
-                "Degenerate state: MetricDF contains rows but has 0 unique evaluation levels."
-            )
+            raise ValueError("Degenerate state: MetricDF contains rows but has 0 unique evaluation levels.")
         if cur_lvls == len(levels):
             return self
         if cur_lvls != 1:
@@ -332,20 +312,14 @@ class MetricDF(pd.DataFrame):
         n_levels = len(levels)
 
         expanded_labels = [
-            self._class_combinations[lbl][lvl]
-            for lbl in self["label"]
-            for lvl in range(n_levels)
+            self._class_combinations[lbl][lvl] for lbl in self["label"] for lvl in range(n_levels)
         ]
         expanded_preds = [
-            self._class_combinations[pred][lvl]
-            for pred in self["prediction"]
-            for lvl in range(n_levels)
+            self._class_combinations[pred][lvl] for pred in self["prediction"] for lvl in range(n_levels)
         ]
 
         cols_to_keep = [
-            k
-            for k in self.columns
-            if k not in ["prediction_level", "prediction_made", "correct"]
+            k for k in self.columns if k not in ["prediction_level", "prediction_made", "correct"]
         ]
         new_df = self[cols_to_keep].loc[self.index.repeat(n_levels)].copy()
 
@@ -359,3 +333,90 @@ class MetricDF(pd.DataFrame):
         self._validated = False
         self.__init__(new_df)
         return self
+
+    def _build_canonical_groups(
+        self, data: MetricData, strata: Sequence[str] | None
+    ) -> tuple[list[list[int]], dict[tuple | None, list[int]]]:
+        """Private helper: Groups row indices by instance_id and maps them to canonical strata."""
+        if strata is not None:
+            for forbidden in ("instance_id", "level"):
+                if forbidden in strata:
+                    raise ValueError(f"'{forbidden}' cannot be used as a stratum.")
+        instance_id = data.instance_id
+        if instance_id is None:
+            raise KeyError("Required column 'instance_id' is missing from MetricData.")
+        level = data.level
+        if level is None:
+            raise KeyError("Required column 'level' is missing from MetricData.")
+
+        # Extract strata arrays directly from the high-performance namespace
+        strata_arrays = []
+        if strata is not None and len(strata) > 0:
+            for st in strata:
+                st_arr = getattr(data, st, None)
+                if st_arr is None:
+                    raise KeyError(f"Selected stratum '{st}' was not found in data.")
+                strata_arrays.append(st_arr)
+
+        # Step A: Group raw row indices by instance_id
+        raw_instance_groups = defaultdict(list)
+        for idx, inst_id in enumerate(instance_id):
+            raw_instance_groups[inst_id].append(idx)
+
+        # Step B: Build indirection list and stratum mapping using lowest level as canonical
+        instance_indices: list[list[int]] = []
+        stratum_to_instances = defaultdict(list)
+
+        for inst_pointer, row_indices in enumerate(raw_instance_groups.values()):
+            instance_indices.append(row_indices)
+
+            # Canonical row: row index within this instance with the lowest level value
+            canonical_idx = min(row_indices, key=lambda i: level[i])
+            key = tuple(arr[canonical_idx] for arr in strata_arrays) if strata_arrays else None
+            stratum_to_instances[key].append(inst_pointer)
+
+        return instance_indices, stratum_to_instances
+
+    def split(
+        self,
+        proportions: Sequence[float],
+        strata: Sequence[str] | None = ("label",),
+        seed: int | None = None,
+        shuffle: bool = True,
+    ) -> list[MetricDF]:
+        """Splits the DataFrame by instance_id into stratified subsets."""
+        # 1. Establish the high-performance NumPy namespace
+        data = self.data
+
+        # 2. Inline Validation
+        prop_array = np.array(proportions, dtype=float)
+        if not np.all(prop_array >= 0):
+            raise ValueError(f"Proportions must be positive, got {proportions}")
+        if np.isclose(prop_array.sum(), 0.0):
+            raise ValueError(f"Proportions cannot sum to zero, got {proportions}")
+        prop_array /= prop_array.sum()
+
+        # 3. Build Canonical Groups via private class method
+        instance_indices, stratum_to_instances = self._build_canonical_groups(data, strata)
+
+        # 4. Apportion instance pointers using standalone helper
+        rng = np.random.default_rng(seed) if shuffle else None
+        split_pointers: list[list[int]] = [[] for _ in range(len(proportions))]
+
+        for inst_pointers in stratum_to_instances.values():
+            buckets = split_values(inst_pointers, prop_array, rng)
+            for i, bucket in enumerate(buckets):
+                split_pointers[i].extend(bucket)
+
+        # 5. Inline Unpacking & Construction
+        final_splits: list[MetricDF] = []
+        for pointers in split_pointers:
+            # Flatten row bundles from selected instance pointers
+            raw_indices = [idx for ptr in pointers for idx in instance_indices[ptr]]
+            sorted_indices = np.sort(np.array(raw_indices, dtype=int))
+
+            # Slice MetricData via .take() and convert back to dict for fast DataFrame init
+            sliced_data = data.take(sorted_indices).to_dict()
+            final_splits.append(MetricDF(sliced_data))
+
+        return final_splits

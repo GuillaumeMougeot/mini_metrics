@@ -9,6 +9,7 @@ import pandas as pd
 from tqdm.auto import tqdm
 
 from mini_metrics.data import MetricData, MetricDF
+from mini_metrics.simple import cumsum, group_segments
 
 R = TypeVar("R")
 _BAD_KW_RE = re.compile(r"unexpected keyword argument '([^']+)'")
@@ -31,9 +32,7 @@ def retry_with_kwargs(fn: Callable[..., R], *args: Any, **kwargs: Any) -> R:
 
 
 # Results and printing
-def pretty_string_dict(
-    metrics: dict, indent: int = 0, digits: int = 3, concatenate: bool = True
-):
+def pretty_string_dict(metrics: dict, indent: int = 0, digits: int = 3, concatenate: bool = True):
     """For printing all metrics."""
     parts = []
     for k, v in metrics.items():
@@ -47,36 +46,11 @@ def pretty_string_dict(
             part = f"{' ' * indent}{k}:"
             parts.append(part)
             parts.extend(pretty_string_dict(v, indent=indent + 2, concatenate=False))
-    first_row_width = max(
-        [len(f"{p[0]}") for p in parts if not isinstance(p, str)], default=0
-    )
-    parts = [
-        p if isinstance(p, str) else f"{p[0]:<{first_row_width}} : {p[1]}"
-        for p in parts
-    ]
+    first_row_width = max([len(f"{p[0]}") for p in parts if not isinstance(p, str)], default=0)
+    parts = [p if isinstance(p, str) else f"{p[0]:<{first_row_width}} : {p[1]}" for p in parts]
     if concatenate:
         return "\n".join(parts)
     return parts
-
-
-def group_segments(indexes: list[int], max_len: int) -> list[list[int]]:
-    out, cur = [], [indexes[0]]
-    for a, b in zip(indexes, indexes[1:]):
-        cur.append(b)
-        if len(cur) < 2:
-            continue
-        if b - cur[0] > max_len:
-            out.append(cur[:-1])
-            cur = [cur[-2], cur[-1]]
-    out.append(cur)
-    return out
-
-
-def cumsum(iter, default=0):
-    s = default
-    for v in iter:
-        s += v
-        yield s
 
 
 def format_table(
@@ -101,13 +75,9 @@ def format_table(
     """
     keys = list(keys)
     if isinstance(list(metrics.values())[0], (float, int)):
-        ds: dict[str, dict[int, float]] = {
-            k: {0: float(v)} for k, v in metrics.items() if k in keys
-        }
+        ds: dict[str, dict[int, float]] = {k: {0: float(v)} for k, v in metrics.items() if k in keys}
     else:
-        ds: dict[str, dict[int, float]] = {
-            k: v for k, v in metrics.items() if k in keys
-        }
+        ds: dict[str, dict[int, float]] = {k: v for k, v in metrics.items() if k in keys}
     # Get rownames
     rows = set([tuple(id.keys()) for id in ds.values()])
     if len(rows) != 1:
@@ -122,9 +92,7 @@ def format_table(
     # Calculate the maximum width of any cell in each column for alignment
     col_widths = [max([len(line[c]) for line in lines]) for c in range(len(cols) + 1)]
     # Create the table again with the calculated alignment factors
-    fmt_row = f"{{:>{col_widths[0]}}} | " + " | ".join(
-        [f"{{:^{cw}}}" for cw in col_widths[1:]]
-    )
+    fmt_row = f"{{:>{col_widths[0]}}} | " + " | ".join([f"{{:^{cw}}}" for cw in col_widths[1:]])
     lines = [fmt_row.format(*line) for line in lines]
     # Add divider between column names and data
     divider = "-|-".join(["-" * cw for cw in col_widths])
@@ -144,22 +112,14 @@ def format_table(
             *[cs - 1 for cs in cumsum(cw + 3 for cw in col_widths[1:])],
         ]
         # Split columns into groups with a total length of no more than max_linewidth - len(rowname)
-        segments = group_segments(
-            column_split_indexes, max_linewidth - len(rownames[0])
-        )
+        segments = group_segments(column_split_indexes, max_linewidth - len(rownames[0]))
         # Get start and end index of each split (set of columns), excluding start and end dividers
         column_groups = [(idxs[0] + 1, idxs[-1] - 1) for idxs in segments]
         # Partition the table and read the row names
-        lines = [
-            rownames[i] + line[s:e]
-            for s, e in column_groups
-            for i, line in enumerate(lines)
-        ]
+        lines = [rownames[i] + line[s:e] for s, e in column_groups for i, line in enumerate(lines)]
     # If there is only one row, we don't need to print the rownames
     if len(rows) == 1:
-        lines = [
-            line.removeprefix(rowname) for line, rowname in zip(lines, cycle(rownames))
-        ]
+        lines = [line.removeprefix(rowname) for line, rowname in zip(lines, cycle(rownames))]
     return "\n".join(lines)
 
 
@@ -228,9 +188,7 @@ def df_from_dict(
                 df_data[k] = [float(v)]
             else:
                 if isinstance(v, dict):
-                    df_data[k] = [
-                        {cls: tuple(map(float, cls_v)) for cls, cls_v in v.items()}
-                    ]
+                    df_data[k] = [{cls: tuple(map(float, cls_v)) for cls, cls_v in v.items()}]
     else:
         # Standard leveled parsing
         first_val = next(iter(filtered_metrics.values()))
@@ -260,9 +218,7 @@ def df_from_dict(
         for k, val in df_data.items():
             print(f"{k} ==> {val}")
 
-    return pd.DataFrame.from_dict(df_data).reindex(
-        labels=[*id_cols, *target_keys], axis="columns"
-    )
+    return pd.DataFrame.from_dict(df_data).reindex(labels=[*id_cols, *target_keys], axis="columns")
 
 
 # General
