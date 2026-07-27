@@ -15,6 +15,7 @@ uv sync
 ## Running Unit Tests
 
 To run the unit tests:
+
 ```bash
 uv run pytest
 ```
@@ -24,6 +25,7 @@ uv run pytest
 The package exposes a command-line interface `mm_metrics`.
 
 ### Basic Command
+
 ```bash
 uv run mm_metrics -f path/to/results.csv -o path/to/output_base
 ```
@@ -31,7 +33,7 @@ uv run mm_metrics -f path/to/results.csv -o path/to/output_base
 ### Options
 
 | Flag | Name | Type | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `-f` | `--file` | `str` | Path to the evaluation result CSV files (default: `demo.csv`). |
 | `-o` | `--output` | `str` | Name of the output CSV/JSON file(s) (without extension). |
 | `-c` | `--combinations` | `str` | Path to a CSV file defining the class hierarchies/combinations. |
@@ -42,6 +44,7 @@ uv run mm_metrics -f path/to/results.csv -o path/to/output_base
 | | `--label_filter` | `str [str ...]` | List of or path to a file containing labels to subset results by. |
 | | `--subsample` | `int` | Subsample data by taking every N-th row. |
 | | `--per_class` | `flag` | Compute per-class metrics. |
+| | `--seed` | `int` | Seed used for splitting the dataset when using `-O`/`--optimal`. |
 | `-v` | `--verbose` | `int` | Verbosity level: `0` (silent), `1` (info/summary, default), or `2` (debug). |
 
 ## Input Data Schema
@@ -49,7 +52,7 @@ uv run mm_metrics -f path/to/results.csv -o path/to/output_base
 The evaluation input file (CSV) must match the following schema:
 
 | Column | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `instance_id` | `int` | ID of the classification instance (grouped for levels). |
 | `filename` | `str` | Associated image or file identifier. |
 | `level` | `int` | Hierarchy level (e.g. `0` for leaf, `1` for parent, etc.). |
@@ -58,7 +61,8 @@ The evaluation input file (CSV) must match the following schema:
 | `confidence` | `float` | Prediction confidence (value between `0` and `1`). |
 | `threshold` | `float` | Confidence threshold (value between `0` and `1`). |
 
-### Optional Columns (automatically inferred if missing):
+### Optional Columns (automatically inferred if missing)
+
 - `known_label` (`bool`): Whether the true label is known by the model.
 - `prediction_level` (`int`): The resolved level at which the model made a prediction.
 - `prediction_made` (`bool`): Whether prediction confidence exceeded the threshold.
