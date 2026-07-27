@@ -23,6 +23,7 @@ from mini_metrics.abstract import (
 )
 from mini_metrics.data import COLUMNS, OPTIONAL_COLUMNS, MetricData, MetricDF
 from mini_metrics.helpers import (
+    apply_macro_weight,
     df_from_dict,
     filter_df,
     format_table,
@@ -46,7 +47,7 @@ class Accuracy(AveragedMetric):
             corr = corr[corr != 0]
         n = len(corr)
         if n == 0:
-            return 0.0, n
+            return 1.0, n
         return np.mean(corr == 1).item(), n
 
 
@@ -97,7 +98,17 @@ class MicroRecall(Recall, MicroMetric):
 
 # F1
 class F1(AveragedMetric):
-    """Calculated as macro-average over all present label classes."""
+    r"""Calculated as macro-average over all present label classes.
+    
+    Under macro-averaging (`macro=True`), all active classes are weighted equally,
+    with absent classes (zero ground-truth occurrences and zero predictions) assigned a
+    weight of 0 to exclude them from the mean. Under micro-averaging (`macro=False`),
+    classes are weighted symmetrically by their joint support—the sum of ground-truth
+    instances and model predictions ($N_c + \hat{N}_c$). This joint weighting resolves the
+    precision-recall domain mismatch, penalizing both false positives (hallucinations)
+    and false negatives (misses) proportionally to their class activity without introducing
+    asymmetric blind spots.
+    """
 
     name: str = "f1"
     should_cast_float = False
@@ -108,15 +119,16 @@ class F1(AveragedMetric):
     ) -> dict[str, tuple[float, float]]:
         Ps = MicroPrecision().compute_all_groups(df, *args, macro=macro, **kwargs)
         Rs = MicroRecall().compute_all_groups(df, *args, macro=macro, **kwargs)
+        E = (1.0, 0, )
 
         clss = []
         ws: list[float] = []
         f1s: list[float] = []
-        for cls in Ps.keys():
-            P, R = Ps[cls][0], Rs[cls][0]
-            w = Ps[cls][1]
+        for cls in set(chain(Rs.keys(), Ps.keys())):
+            P, R = Ps.get(cls, E)[0], Rs.get(cls, E)[0]
+            w = apply_macro_weight(Rs.get(cls, E)[1] + Ps.get(cls, E)[1], macro)
             clss.append(cls)
-            ws.append(1.0 if macro else w)
+            ws.append(w)
             if not isfinite(P) or not isfinite(R):
                 f1 = float("nan")
             elif P == 0 or R == 0:
@@ -164,9 +176,7 @@ class _TheilU(AveragedMetric):
             if CS[idx] <= 0:
                 continue
             val = float(1 - eCS[idx].item() / eN.item())
-            w = float(CS[idx].item())
-            w = (1.0 if macro else w)
-            results[c] = (val, w)
+            results[c] = (val, apply_macro_weight(CS[idx].item(), macro))
         return results
 
 
@@ -512,6 +522,7 @@ def evaluate_file(
     label_filter: str | list[str] | None = None,
     subsample: int | None = None,
     per_class: bool = False,
+    seed: int | None = None,
     verbose: int = 1,
 ) -> dict:
     """Runs the metric evaluation pipeline on a single file path or existing MetricDF.
@@ -541,7 +552,7 @@ def evaluate_file(
         df = df.add_combinations(combinations)
 
     if optimal:
-        df, calib = df.split((0.9, 0.1))
+        df, calib = df.split((0.9, 0.1), seed=seed)
         if verbose > 0:
             print(f"Computing optimal threshold on {len(calib)} samples, keeping {len(df)} for metrics.")
         opt_threshold = OptimalConfidenceThreshold()(calib, verbose=verbose)
@@ -594,6 +605,7 @@ def main(
     label_filter: str | list[str] | None = None,
     subsample: int | None = None,
     per_class: bool = False,
+    seed: int | None=None,
     verbose: int = 1,
 ):
     if files is None:
@@ -630,6 +642,7 @@ def main(
                 label_filter=label_filter,
                 subsample=subsample,
                 per_class=per_class,
+                seed=seed,
                 verbose=verbose,
             )
 
@@ -759,6 +772,13 @@ def cli():
         action="store_true",
         required=False,
         help="Compute per-class statistics.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        required=False,
+        help="Seed used for splitting the dataset when computing and applying the 'optimal threshold' via the `-O`/`--optimal` argument."
     )
     parser.add_argument(
         "-v",

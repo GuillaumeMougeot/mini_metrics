@@ -2,9 +2,10 @@ from itertools import chain, repeat
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from mini_metrics.data import COLUMNS, MetricData, MetricDF
-from mini_metrics.helpers import group_map
+from mini_metrics.helpers import apply_macro_weight, group_map
 from mini_metrics.simple import mean, to_float
 
 mandatory_columns = ("level", "prediction", "label")
@@ -105,10 +106,11 @@ class AveragedMetric(Metric):
         should override this method. It must return a dictionary mapping
         each group/class to a tuple of (metric_value, weight).
         """
-        grps = list(getattr(df, self.group).unique())
+        grps = list(pd.concat(getattr(df, k) for k in set((self.group, self.by))).unique())
         if len(grps) <= 1:
             v, w = self.compute(df, *args, **kwargs)
-            return {grps[0] if grps else None: (float(v), float(1.0 if macro else w))}
+            w = apply_macro_weight(w, macro)
+            return {grps[0] if grps else None: (float(v), w)}
 
         idxs = df.groupby(self.by, sort=False, observed=True).indices
         empty = np.empty((0,), dtype=np.int64)
@@ -121,7 +123,7 @@ class AveragedMetric(Metric):
             verbose=0 if len(grps) >= 32 else verbose,
             **kwargs,
         )
-        return {g: (float(v), float(1.0 if macro else w)) for g, (v, w) in zip(grps, values)}
+        return {g: (float(v), apply_macro_weight(w, macro)) for g, (v, w) in zip(grps, values)}
 
     def __call__(
         self,

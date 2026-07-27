@@ -2,7 +2,7 @@ import os
 import re
 from collections.abc import Callable, Iterable
 from itertools import cycle
-from typing import Any, Concatenate, TypeVar
+from typing import Any, Concatenate, SupportsFloat, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -224,7 +224,7 @@ def df_from_dict(
 # General
 def group_map[R](
     df: MetricDF | MetricData,
-    group_idx: list[np.ndarray],
+    group_idx: Iterable[np.ndarray],
     func: Callable[Concatenate[MetricData, ...], R],
     *args,
     verbose: int = 1,
@@ -304,3 +304,19 @@ def filter_df(df: MetricDF, filter: str | list[str], verbose: int = 1):
 
     df = df.take(_match(df))
     return df
+
+
+def apply_macro_weight(weight: SupportsFloat, macro: bool, eps: float = 1e-9) -> float:
+    """Applies macro logic to a weight value AND ensures that it is converted to a float.
+    
+    If `macro=True` then the return value is `0.0` of `abs(weight) < eps` otherwise it is `1.0`.
+
+    If `macro=False` then the return value is the original value.
+    """
+    if not isinstance(weight, float):
+        weight = float(weight)
+    if not macro:
+        return weight
+    if abs(weight) < eps:
+        return 0.0
+    return 1.0
