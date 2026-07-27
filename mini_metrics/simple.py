@@ -42,7 +42,7 @@ def mean(
             continue
         s += x * w
         n += w
-    
+
     return float("nan") if n == 0 else s / n
 
 

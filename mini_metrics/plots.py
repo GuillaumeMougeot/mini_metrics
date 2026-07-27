@@ -104,7 +104,12 @@ def plot_df(
                 )
         else:
             els.append(pts)
-    ax.legend(handles=els, labels=[str(g).removesuffix("_metrics") for g in groups], loc="upper left", bbox_to_anchor=(1.05, 1))
+    ax.legend(
+        handles=els,
+        labels=[str(g).removesuffix("_metrics") for g in groups],
+        loc="upper left",
+        bbox_to_anchor=(1.05, 1),
+    )
     ax.set_ylim(-0.5, len(metrics) - 0.5)
     return ax
 

@@ -99,7 +99,7 @@ class MicroRecall(Recall, MicroMetric):
 # F1
 class F1(AveragedMetric):
     r"""Calculated as macro-average over all present label classes.
-    
+
     Under macro-averaging (`macro=True`), all active classes are weighted equally,
     with absent classes (zero ground-truth occurrences and zero predictions) assigned a
     weight of 0 to exclude them from the mean. Under micro-averaging (`macro=False`),
@@ -119,7 +119,7 @@ class F1(AveragedMetric):
     ) -> dict[str, tuple[float, float]]:
         Ps = MicroPrecision().compute_all_groups(df, *args, macro=macro, **kwargs)
         Rs = MicroRecall().compute_all_groups(df, *args, macro=macro, **kwargs)
-        E = (1.0, 0, )
+        E = (1.0, 0)
 
         clss = []
         ws: list[float] = []
@@ -605,7 +605,7 @@ def main(
     label_filter: str | list[str] | None = None,
     subsample: int | None = None,
     per_class: bool = False,
-    seed: int | None=None,
+    seed: int | None = None,
     verbose: int = 1,
 ):
     if files is None:
@@ -618,10 +618,12 @@ def main(
 
     simple_metrics = get_all_metrics(simple=True).keys()
     multi_file = len(files) > 1
-    
+
     with tqdm(files, desc="Processing files", leave=True, disable=not multi_file or verbose < 1) as pbar:
         for file_path in pbar:
-            base_file = os.path.splitext(os.path.basename(re.sub(r"\.zip", "", str(file_path), flags=re.IGNORECASE)))[0]
+            base_file = os.path.splitext(
+                os.path.basename(re.sub(r"\.zip", "", str(file_path), flags=re.IGNORECASE))
+            )[0]
 
             output_path = file_out_name = None
             if output_dir:
@@ -778,7 +780,7 @@ def cli():
         type=int,
         default=None,
         required=False,
-        help="Seed used for splitting the dataset when computing and applying the 'optimal threshold' via the `-O`/`--optimal` argument."
+        help="Seed used for splitting the dataset when computing and applying the 'optimal threshold' via the `-O`/`--optimal` argument.",
     )
     parser.add_argument(
         "-v",
@@ -792,7 +794,7 @@ def cli():
     args = vars(parser.parse_args())
     if (args.pop("save_output", False) or args["output_name"]) and not args.get("output_dir", False):
         args["output_dir"] = "."
-    
+
     return args
 
 

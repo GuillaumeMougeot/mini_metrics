@@ -50,26 +50,33 @@ class Metric:
             df = df.drop(columns=[c for c in COLUMNS if c not in self.columns])
 
         if self.is_per_level:
-            return {lvl: (df[df.level == lvl] if lvl is not None else df) for lvl in sorted(df.level.unique().tolist())} 
-        
+            return {
+                lvl: (df[df.level == lvl] if lvl is not None else df)
+                for lvl in sorted(df.level.unique().tolist())
+            }
+
         return {None: df}
 
-    def __call__(self, df: MetricDF, *args, filter: bool = False, **kwargs) -> dict[int, tuple[Any, int]] | tuple[Any, int]:
+    def __call__(
+        self, df: MetricDF, *args, filter: bool = False, **kwargs
+    ) -> dict[int, tuple[Any, int]] | tuple[Any, int]:
         """Entry point for evaluating the metric with filtering and level splitting."""
         slices = self.precompute(df=df, filter=filter)
-        results: dict[None, tuple[Any, int]] | dict[int, tuple[Any, int]] = {k: self.compute(v, *args, **kwargs) for k, v in slices.items()}
+        results: dict[None, tuple[Any, int]] | dict[int, tuple[Any, int]] = {
+            k: self.compute(v, *args, **kwargs) for k, v in slices.items()
+        }
 
         if self.should_cast_float and kwargs.get("aggregate", True):
             results = {k: (to_float(v), w) for k, (v, w) in results.items()}
 
         retval: tuple[Any, int] | dict[int, tuple[Any, int]] = results.get(None, results)
-        
+
         if self.drop_weight:
             if isinstance(retval, dict):
                 retval = {k: v for k, (v, _) in retval.items()}
             else:
                 retval = retval[0]
-        
+
         return retval
 
 

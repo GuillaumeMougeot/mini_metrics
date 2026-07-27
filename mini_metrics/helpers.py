@@ -308,7 +308,7 @@ def filter_df(df: MetricDF, filter: str | list[str], verbose: int = 1):
 
 def apply_macro_weight(weight: SupportsFloat, macro: bool, eps: float = 1e-9) -> float:
     """Applies macro logic to a weight value AND ensures that it is converted to a float.
-    
+
     If `macro=True` then the return value is `0.0` of `abs(weight) < eps` otherwise it is `1.0`.
 
     If `macro=False` then the return value is the original value.

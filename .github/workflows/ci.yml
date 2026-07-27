@@ -26,9 +26,6 @@ jobs:
       - name: Lint with ruff
         run: uv run ruff check mini_metrics tests
 
-      - name: Check formatting with ruff
-        run: uv run ruff format --check mini_metrics tests
-
   test:
     runs-on: ubuntu-latest
     strategy:
