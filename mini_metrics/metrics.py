@@ -650,8 +650,7 @@ def main(
             )
 
             if per_class:
-                per_class_output = file_out_name and f"{file_out_name}_per_class"
-                handle_per_class_metrics(metrics, per_class_output, verbose)
+                handle_per_class_metrics(metrics, output_path, verbose)
                 continue
 
             if all:
