@@ -140,7 +140,7 @@ def unnest_class(
                 if cls not in scaffold:
                     scaffold[cls] = dict()
                 scaffold[cls][metric] = value
-                scaffold[cls]["count"] = max(scaffold[cls].get("count", 0), count)
+                scaffold[cls]["count"] = int(max(scaffold[cls].get("count", 0), count))
                 scaffold[cls]["level"] = level
     # Remove classes which don't have all metrics
     max_metrics = max(map(len, scaffold.values()))
