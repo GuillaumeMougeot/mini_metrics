@@ -299,7 +299,7 @@ class OptimalConfidenceThreshold(Metric):
         with tqdm(
             total=(self.breaks // self.depth + 1) * self.depth,
             desc="Optimizing threshold",
-            leave=True,
+            leave=verbose > 1,
             disable=verbose < 1,
         ) as pbar:
             smi, sma = 0, 1
@@ -323,7 +323,7 @@ class OptimalConfidenceThreshold(Metric):
 
         if not best:
             raise RuntimeError(f"No values close to {self.target}(values)={target_val}")
-        if len(best) > 1 and verbose > 0:
+        if len(best) > 1 and verbose > 1:
             print(
                 f"Found {len(best)} optimal thresholds at: ["
                 + ", ".join(f"{v:.3f}" for v in sorted(best))
@@ -437,7 +437,7 @@ def evaluate_all_metrics(
         metrics_instances.items(),
         desc="Computing metrics",
         unit="metric",
-        leave=True,
+        leave=verbose > 1,
         dynamic_ncols=True,
         disable=verbose < 1,
     ) as pbar:
@@ -486,7 +486,7 @@ def evaluate_all_metrics(
     return metric_values
 
 
-PER_CLASS_EXCEPTIONS = ("theilU",)
+PER_CLASS_EXCEPTIONS = ("theilU", "optimal_confidence_threshold")
 
 
 def handle_per_class_metrics(
@@ -499,7 +499,7 @@ def handle_per_class_metrics(
         print()
     K = [k for k in get_all_metrics(simple=True) if k not in PER_CLASS_EXCEPTIONS]
     df = df_from_dict(metrics, K, per_class=True, verbose=verbose)
-    if verbose > 1:
+    if verbose > 1 or (not output and verbose > 0):
         print("\nPER-CLASS METRIC TABLE")
         print(df)
     if output:
@@ -553,10 +553,11 @@ def evaluate_file(
 
     if optimal:
         df, calib = df.split((0.9, 0.1), seed=seed)
-        if verbose > 0:
+        if verbose > 1:
             print(f"Computing optimal threshold on {len(calib)} samples, keeping {len(df)} for metrics.")
         opt_threshold = OptimalConfidenceThreshold()(calib, verbose=verbose)
-        precalculated["optimal_confidence_threshold"] = opt_threshold
+        if not per_class:
+            precalculated["optimal_confidence_threshold"] = opt_threshold
         if isinstance(opt_threshold, dict):
             threshold = [float(v) for _, v in sorted(opt_threshold.items(), key=lambda x: x[0])]
 
