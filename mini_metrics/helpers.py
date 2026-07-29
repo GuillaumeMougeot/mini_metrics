@@ -2,7 +2,7 @@ import os
 import re
 from collections.abc import Callable, Iterable
 from itertools import cycle
-from typing import Any, Concatenate, SupportsFloat, TypeVar
+from typing import Any, Concatenate, Literal, SupportsFloat, TypeVar, overload
 
 import numpy as np
 import pandas as pd
@@ -32,6 +32,10 @@ def retry_with_kwargs(fn: Callable[..., R], *args: Any, **kwargs: Any) -> R:
 
 
 # Results and printing
+@overload
+def pretty_string_dict(metrics: dict, indent: int = 0, digits: int = 3, concatenate: Literal[True] = True) -> str: ...
+@overload
+def pretty_string_dict(metrics: dict, indent: int = 0, digits: int = 3, concatenate: Literal[False] = False) -> list[str]: ...
 def pretty_string_dict(metrics: dict, indent: int = 0, digits: int = 3, concatenate: bool = True):
     """For printing all metrics."""
     parts = []
@@ -125,9 +129,9 @@ def format_table(
 
 def unnest_class(
     metric_df_data: dict[str, list[int] | list[dict[str, tuple[float, float]]]],
-) -> dict[str, list[float] | list[int] | list[str]]:
+) -> dict[str, list[float | int | str]]:
     # Invert nested class dictionaries
-    scaffold = dict()
+    scaffold: dict[str, dict[str, float | int | str]] = dict()
     for metric, level_values in metric_df_data.items():
         if metric == "level":
             continue
@@ -146,19 +150,17 @@ def unnest_class(
     max_metrics = max(map(len, scaffold.values()))
     scaffold = {k: v for k, v in scaffold.items() if len(v) == max_metrics}
     # Unfold classes
-    out: dict[str, list[float] | list[int] | list[str]] = dict()
+    out: dict[str, list[float | int | str]] = dict()
     out["class"] = []
     for cls, metrics in scaffold.items():
         out["class"].append(cls)
         for k, v in metrics.items():
-            if k not in out:
-                out[k] = []
-            out[k].append(v)
+            out.setdefault(k, []).append(v)
     return out
 
 
 def df_from_dict(
-    metrics: dict,
+    metrics: dict[str, dict[int, SupportsFloat]] | dict[str, SupportsFloat],
     keys: Iterable[str],
     per_class: bool = False,
     verbose: int = 1,
@@ -184,6 +186,7 @@ def df_from_dict(
     if no_levels:
         levels = [0]
         for k, v in filtered_metrics.items():
+            assert not isinstance(v, dict)
             if not per_class:
                 df_data[k] = [float(v)]
             else:
@@ -193,7 +196,7 @@ def df_from_dict(
         # Standard leveled parsing
         first_val = next(iter(filtered_metrics.values()))
         if isinstance(first_val, dict):
-            levels = sorted(map(lambda x: int(x), first_val.keys()))
+            levels = sorted(int(k) for k in first_val.keys())  # ty:ignore[invalid-argument-type]
         else:
             levels = [0]
 
