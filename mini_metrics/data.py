@@ -284,9 +284,9 @@ class MetricDF(pd.DataFrame):
         for col in lazy_cols:
             self[col] = self._default(self, col)
 
-    def add_combinations(self, src: str | Path | list[tuple[str, ...]]) -> MetricDF:
+    def add_combinations(self, src: str | Path | list[tuple[str, ...]]) -> dict[str, tuple[str, ...]]:
         if self.empty:
-            return self
+            return {}
 
         if isinstance(src, (str, Path)):
             data = pd.read_csv(src)
@@ -303,7 +303,7 @@ class MetricDF(pd.DataFrame):
         if cur_lvls == 0:
             raise ValueError("Degenerate state: MetricDF contains rows but has 0 unique evaluation levels.")
         if cur_lvls == len(levels):
-            return self
+            return self._class_combinations
         if cur_lvls != 1:
             raise NotImplementedError(
                 "Adding additional combinations to a MetricDF with more than one existing level is not currently supported."
@@ -332,7 +332,7 @@ class MetricDF(pd.DataFrame):
         # Re-initialize self in-place
         self._validated = False
         self.__init__(new_df)
-        return self
+        return self._class_combinations
 
     def _build_canonical_groups(
         self, data: MetricData, strata: Sequence[str] | None

@@ -37,9 +37,11 @@ def split_cols(df: pd.DataFrame, pattern: str | re.Pattern | Iterable[str | re.P
 
 def var_groups(df: pd.DataFrame) -> OrderedDict[str, pd.DataFrame]:
     df_stand, df_other = split_cols(df, STANDARD_METRICS)
+    df_rank, df_stand = split_cols(df_stand, "(_?|^)rank_")
     df_theilU, df_other = split_cols(df_other, "^theilU")
     df_stand_micro, df_stand_macro = split_cols(df_stand, "^micro")
-    return OrderedDict(
+    df_rank_micro, df_rank_macro = split_cols(df_rank, "^micro")
+    dfs: OrderedDict[str, pd.DataFrame] = OrderedDict(
         (
             ("Standard (macro)", df_stand_macro),
             ("Standard (micro)", df_stand_micro),
@@ -47,6 +49,10 @@ def var_groups(df: pd.DataFrame) -> OrderedDict[str, pd.DataFrame]:
             ("Other", df_other),
         )
     )
+    if len(df_rank.columns):
+        dfs["Rank (macro)"] = df_rank_macro
+        dfs["Rank (micro)"] = df_rank_micro
+    return dfs
 
 
 def plot_df(

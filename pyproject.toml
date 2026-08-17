@@ -1,6 +1,6 @@
 [project]
 name = "mini_metrics"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
   "numpy",
   "pandas",

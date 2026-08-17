@@ -4,7 +4,7 @@ import argparse
 import json
 import os
 import re
-from collections import Counter, OrderedDict
+from collections import OrderedDict
 from collections.abc import Callable, Iterable
 from itertools import chain
 from math import isfinite
@@ -30,7 +30,18 @@ from mini_metrics.helpers import (
     pretty_string_dict,
     retry_with_kwargs,
 )
-from mini_metrics.simple import mean, shannon_entropy
+from mini_metrics.hierarchical import (
+    MacroRankAccuracy,
+    MacroRankF1,
+    MacroRankPrecision,
+    MacroRankRecall,
+    MicroRankAccuracy,
+    MicroRankF1,
+    MicroRankPrecision,
+    MicroRankRecall,
+    RankError,
+)
+from mini_metrics.simple import shannon_entropy
 
 
 # Accuracy
@@ -269,11 +280,15 @@ class OptimalConfidenceThreshold(Metric):
     breaks: int = 15
     depth: int = 3
     eps: float = 1e-3
-    crit: type[Metric] = MacroF1
+    crit: type[Metric]
     target: Callable[[Iterable[float]], float] = max
     columns = (*(set(COLUMNS) - set(OPTIONAL_COLUMNS)), "known_label")
 
-    def compute(self, df: MetricDF | MetricData, verbose: int = 1) -> tuple[float, int]:
+    def __init__(self, crit: type[Metric] = MacroF1, *args, **kwargs):
+        self.crit = crit
+        super().__init__(*args, *kwargs)
+
+    def compute(self, df: MetricDF | MetricData, verbose: int = 1, **kwargs) -> tuple[float, int]:
         base_df_data = df.copy().data if isinstance(df, MetricDF) else df
         base_dict = base_df_data.to_dict()
         crit = self.crit()
@@ -288,12 +303,14 @@ class OptimalConfidenceThreshold(Metric):
                 correct = pred_made * ((base_dict["prediction"] == base_dict["label"]) * 2 - 1)
                 fast_dict = {
                     **base_dict,
+                    "prediction": base_dict["prediction"],
+                    "label": base_dict["label"],
                     "threshold": tarr,
                     "prediction_made": pred_made,
                     "correct": correct,
                 }
                 fast_df = MetricDF(fast_dict, _validated=True)
-                res[t] = crit(fast_df)
+                res[t] = crit(fast_df, **kwargs)
             return res[t]
 
         with tqdm(
@@ -334,55 +351,7 @@ class OptimalConfidenceThreshold(Metric):
         return sorted(best, key=lambda v: abs(v - best_mid))[0], len(base_df_data)
 
 
-# Hierarchy Helpers
-def class_path(cls: str, c2p: dict[str, str]):
-    path = [cls]
-    while path[-1] in c2p:
-        path.append(c2p[path[-1]])
-    return path
-
-
-def rank_distance(x: str, y: str, c2p: dict[str, str]):
-    if x == y:
-        return 0
-    xp = class_path(x, c2p)
-    yp = class_path(y, c2p)
-    hit = max([i for i, (a, b) in enumerate(zip(xp[::-1], yp[::-1])) if a == b], default=-1)
-    return min(len(xp), len(yp)) - (hit + 1)
-
-
-def child2parent_from_combinations(combinations: dict[str, tuple[str, ...]]):
-    child2parent: dict[str, str] = dict()
-    for comb in combinations.values():
-        for c, p in zip(comb, comb[1:]):
-            if c not in child2parent:
-                child2parent[c] = p
-    return child2parent
-
-
-# Rank Error
-class RankError(Metric):
-    """Average distance to last common ancestor."""
-
-    name: str = "rank_error"
-    columns = ("prediction_level",)
-    is_per_level = False
-    should_cast_float = False
-
-    def compute(self, df: MetricDF):
-        if (combinations := getattr(df, "_class_combinations", None)) is None:
-            return None, 0
-        child2parent = child2parent_from_combinations(combinations)
-        df = df[df.level == df.prediction_level]
-        errs = OrderedDict((lvl, []) for lvl in range(int(df.prediction_level.unique().max()) + 1))
-        for x, y, lvl in zip(df.prediction, df.label, df.prediction_level):
-            errs[lvl].append(rank_distance(x, y, child2parent))
-        avg = mean(chain.from_iterable(errs.values()))
-        counts = OrderedDict((k, OrderedDict(sorted(Counter(v).items()))) for k, v in errs.items())
-        return {"average": avg, "counts": counts}, len(df)
-
-
-def get_all_metrics(pattern: str | re.Pattern | None = None, simple: bool | None = None):
+def get_all_metrics(pattern: str | re.Pattern | None = None, simple: bool | None = None, hierarchical: bool | None = None):
     def metric_filter(name_obj: tuple[str, Metric]):
         name, obj = name_obj
         retval = True
@@ -407,8 +376,19 @@ def get_all_metrics(pattern: str | re.Pattern | None = None, simple: bool | None
         AveragePredictionLevel,
         ConfidenceStats,
         OptimalConfidenceThreshold,
-        RankError,
     ]
+    if hierarchical:
+        metric_classes.extend([
+            MacroRankAccuracy,
+            MacroRankPrecision,
+            MacroRankRecall,
+            MacroRankF1,
+            MicroRankAccuracy,
+            MicroRankPrecision,
+            MicroRankRecall,
+            MicroRankF1,
+            RankError,
+        ])
     metrics = OrderedDict((m_cls.name, m_cls()) for m_cls in metric_classes)
     return OrderedDict(filter(metric_filter, metrics.items()))
 
@@ -420,18 +400,24 @@ def evaluate_all_metrics(
     per_class: bool = False,
     verbose: int = 1,
     precalculated: dict[str, Any] | None = None,
-    **kwargs,
+    combinations: dict[str, tuple[str, ...]] | None = None,
+    pattern: str | re.Pattern | None = None,
+    simple: bool | None = None,
+    hierarchical: bool | None = None
 ) -> dict[str, dict[int, float] | dict[str, tuple[float, float]] | float | Any]:
     metric_kwargs = {}
     if known_only:
         metric_kwargs["filter"] = True
     if per_class:
         metric_kwargs["aggregate"] = False
+    if hierarchical:
+        assert combinations is not None
+        metric_kwargs["combinations"] = combinations
     if precalculated is None or per_class:
         precalculated = {}
 
-    metrics_instances = get_all_metrics(**kwargs)
-    simple_metrics = get_all_metrics(simple=True)
+    metrics_instances = get_all_metrics(pattern=pattern, simple=simple, hierarchical=hierarchical)
+    simple_metrics = get_all_metrics(pattern=pattern, simple=True, hierarchical=hierarchical)
 
     with tqdm(
         metrics_instances.items(),
@@ -522,6 +508,9 @@ def evaluate_file(
     label_filter: str | list[str] | None = None,
     subsample: int | None = None,
     per_class: bool = False,
+    pattern: str | re.Pattern | None = None,
+    simple: bool | None = None,
+    hierarchical: bool | None = None,
     seed: int | None = None,
     verbose: int = 1,
 ) -> dict:
@@ -543,19 +532,21 @@ def evaluate_file(
         df = MetricDF.from_source(source)
 
     precalculated = {}
+    combinations_data = None
 
     if subsample is not None and subsample != 1:
         df = df.take(df.index[::subsample])  # type: ignore
     if label_filter is not None:
         df = filter_df(df, label_filter)
+    assert combinations is None or ((combinations is not None) == bool(hierarchical))
     if combinations is not None:
-        df = df.add_combinations(combinations)
+        combinations_data = df.add_combinations(combinations)
 
     if optimal:
         df, calib = df.split((0.9, 0.1), seed=seed)
         if verbose > 1:
             print(f"Computing optimal threshold on {len(calib)} samples, keeping {len(df)} for metrics.")
-        opt_threshold = OptimalConfidenceThreshold()(calib, verbose=verbose)
+        opt_threshold = OptimalConfidenceThreshold(MacroF1)(calib, verbose=verbose)
         if not per_class:
             precalculated["optimal_confidence_threshold"] = opt_threshold
         if isinstance(opt_threshold, dict):
@@ -589,6 +580,10 @@ def evaluate_file(
         per_class=per_class,
         verbose=verbose,
         precalculated=precalculated,
+        combinations=combinations_data,
+        pattern=pattern,
+        simple=simple,
+        hierarchical=hierarchical
     )
 
     return metrics
@@ -606,6 +601,7 @@ def main(
     label_filter: str | list[str] | None = None,
     subsample: int | None = None,
     per_class: bool = False,
+    pattern: str | re.Pattern | None = None,
     seed: int | None = None,
     verbose: int = 1,
 ):
@@ -617,7 +613,8 @@ def main(
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
 
-    simple_metrics = get_all_metrics(simple=True).keys()
+    hierarchical = False  # TODO: This is currently disabled because the design of the hierarchical metrics need to be refined
+    simple_metrics = get_all_metrics(pattern=pattern, simple=True, hierarchical=hierarchical).keys()
     multi_file = len(files) > 1
 
     with tqdm(files, desc="Processing files", leave=True, disable=not multi_file or verbose < 1) as pbar:
@@ -645,6 +642,9 @@ def main(
                 label_filter=label_filter,
                 subsample=subsample,
                 per_class=per_class,
+                pattern=pattern,
+                simple=not all,
+                hierarchical=hierarchical,
                 seed=seed,
                 verbose=verbose,
             )
