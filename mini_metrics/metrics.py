@@ -164,13 +164,20 @@ class _TheilU(AveragedMetric):
     """Theil's U metric."""
 
     name: str = "theilU"
+    columns: tuple[str, ...] = (
+        "label",
+        "prediction",
+        "prediction_made",
+    )
 
     def compute_all_groups(
         self, df: MetricDF | MetricData, *args, macro: bool = False, **kwargs
     ) -> dict[Any, tuple[float, float]]:
-        lab, pred = df.label, df.prediction
+        lab, pred, pm = df.label, df.prediction, df.prediction_made
         assert lab is not None
         assert pred is not None
+        assert pm is not None
+        lab, pred = lab[pm], pred[pm]
         classes = sorted(list(set(lab).union(pred)))
         C = confusion_matrix(lab, pred, labels=classes).astype(float)
         N, CS, RS = [C.sum(a) for a in [None, 0, 1]]
