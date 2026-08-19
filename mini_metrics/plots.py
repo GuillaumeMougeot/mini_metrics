@@ -226,21 +226,27 @@ def render_ascii_plot(vgroup: str, df: pd.DataFrame, bar_width: int = 40) -> str
         grp_name = str(grp).removesuffix("_metrics") if grp is not None else "default"
         grp_symbols[grp] = (grp_name, symbol)
 
+    min_str = f"{min_val:.2f}"
+    max_str = f"{max_val:.2f}"
+    scale_bar = "-" * bar_width
+
+    scale_prefix = "Scale: "
+    max_metric_len = max(len(str(m)) for m in metrics)
+    prefix_width = max(len(scale_prefix) + len(min_str), max_metric_len + 1)
+    total_width = prefix_width + 1 + bar_width + 1 + 1 + len(max_str)
+
     lines = []
-    lines.append("=" * 60)
+    lines.append("=" * total_width)
     lines.append(f"  {vgroup}")
-    lines.append("=" * 60)
+    lines.append("=" * total_width)
 
     legend_items = [f"{name} ({sym})" for _, (name, sym) in grp_symbols.items()]
     lines.append("Legend: " + ", ".join(legend_items))
 
-    min_str = f"{min_val:.2f}"
-    max_str = f"{max_val:.2f}"
-    scale_bar = "-" * bar_width
-    lines.append(f"Scale:  {min_str:>6} |{scale_bar}| {max_str}")
-    lines.append("")
+    scale_val_str = f"{min_str:>{prefix_width - len(scale_prefix)}}"
+    lines.append(f"{scale_prefix}{scale_val_str} |{scale_bar}| {max_str}")
 
-    max_metric_len = max(len(str(m)) for m in metrics)
+    lines.append("")
 
     num_groups = len(groups)
     num_sub_rows = num_groups if num_groups % 2 == 1 else num_groups + 1
@@ -260,6 +266,8 @@ def render_ascii_plot(vgroup: str, df: pd.DataFrame, bar_width: int = 40) -> str
             r_idx = grp_sub_row[gi]
             grp_name, sym = grp_symbols[grp]
             dfg = df_flat if grp is None else df_flat[df_flat[group_var] == grp]
+
+            grp_pts = []
             for _, row in dfg.iterrows():
                 val = row[col]
                 if pd.isna(val):
@@ -273,19 +281,36 @@ def render_ascii_plot(vgroup: str, df: pd.DataFrame, bar_width: int = 40) -> str
                 pos = int((val_float - min_val) / (max_val - min_val) * (bar_width - 1))
                 pos = max(0, min(bar_width - 1, pos))
 
-                text_to_draw = f"{sym}{lbl}"
-                for offset, char in enumerate(text_to_draw):
-                    target_pos = pos + offset
+                if pos >= bar_width - 1:
+                    text = f"{lbl}{sym}"
+                else:
+                    text = f"{sym}{lbl}"
+
+                start_pos = max(0, min(bar_width - len(text), pos))
+                grp_pts.append((start_pos, text))
+
+            if not grp_pts:
+                continue
+
+            if len(grp_pts) >= 2:
+                min_p = min(p[0] for p in grp_pts)
+                max_p = max(p[0] + len(p[1]) - 1 for p in grp_pts)
+                for k in range(min_p, max_p + 1):
+                    sub_row_bufs[r_idx][k] = "─"
+
+            for start_pos, text in grp_pts:
+                for offset, char in enumerate(text):
+                    target_pos = start_pos + offset
                     if target_pos < bar_width:
                         sub_row_bufs[r_idx][target_pos] = char
 
         for r_idx in range(num_sub_rows):
             if r_idx == mid_sub_row:
-                metric_prefix = str(col).ljust(max_metric_len)
+                metric_prefix = f"{str(col):>{prefix_width}} "
             else:
-                metric_prefix = " " * max_metric_len
+                metric_prefix = f"{' ':{prefix_width}} "
             row_str = "".join(sub_row_bufs[r_idx])
-            lines.append(f"{metric_prefix} |{row_str}|")
+            lines.append(f"{metric_prefix}|{row_str}|")
 
         lines.append("")
 

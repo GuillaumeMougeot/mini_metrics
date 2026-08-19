@@ -1,6 +1,13 @@
 import pytest
 
-from mini_metrics.plots import cli, get_df_names, main, normalize_path, parse_mini_metric
+from mini_metrics.plots import (
+    cli,
+    get_df_names,
+    main,
+    normalize_path,
+    parse_mini_metric,
+    render_ascii_plot,
+)
 
 
 def test_normalize_path():
@@ -154,3 +161,24 @@ def test_main_ascii_flag_false(tmp_path):
 
     out_str = captured.getvalue()
     assert out_str == ""
+
+
+def test_render_ascii_plot_visual_formatting(tmp_path):
+    csv1 = tmp_path / "conditional_metrics.csv"
+    csv1.write_text("level,accuracy\n0,0.80\n1,0.90\n2,0.95\n")
+    csv2 = tmp_path / "independent_metrics.csv"
+    csv2.write_text("level,accuracy\n0,0.80\n1,0.90\n2,0.99\n")
+
+    df1 = parse_mini_metric(str(csv1), name="conditional")
+    df2 = parse_mini_metric(str(csv2), name="independent")
+    import pandas as pd
+
+    df = pd.concat([df1, df2]).set_index("name", append=True)
+
+    ascii_out = render_ascii_plot("Standard (macro)", df)
+    # Check solid connecting line character \u2500 is present
+    assert "─" in ascii_out
+    # Check Scale row is present
+    assert "Scale:" in ascii_out
+    # Check right-edge push-in / label flipping
+    assert "2+" in ascii_out or "+2" in ascii_out
