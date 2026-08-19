@@ -38,3 +38,43 @@ def test_main_with_example_files(tmp_path, examples_dir, filename_base):
                 except ValueError:
                     # If it's just text (like a name or ID), compare normally
                     assert actual_row[key] == expected_row[key]
+
+
+def test_precision_options(tmp_path, examples_dir):
+    input_file = examples_dir / "flemming_fastai_v1.csv.zip"
+
+    # Default precision (6)
+    out_default = tmp_path / "default_metrics.csv"
+    main(files=input_file, output_dir=tmp_path, output_name="default_metrics")
+    assert out_default.exists()
+    with open(out_default) as f:
+        reader = list(csv.DictReader(f))
+        for row in reader:
+            for k, v in row.items():
+                if k != "level" and "." in v:
+                    decimals = len(v.split(".")[1])
+                    assert decimals <= 6
+
+    # Custom precision (2)
+    out_custom = tmp_path / "custom_metrics.csv"
+    main(files=input_file, output_dir=tmp_path, output_name="custom_metrics", precision=2)
+    assert out_custom.exists()
+    with open(out_custom) as f:
+        reader = list(csv.DictReader(f))
+        for row in reader:
+            for k, v in row.items():
+                if k != "level" and "." in v:
+                    decimals = len(v.split(".")[1])
+                    assert decimals <= 2
+
+    # Disabled precision (full float precision)
+    out_full = tmp_path / "full_metrics.csv"
+    main(files=input_file, output_dir=tmp_path, output_name="full_metrics", precision=-1)
+    assert out_full.exists()
+    with open(out_full) as f:
+        reader = list(csv.DictReader(f))
+        has_long_decimal = any(
+            len(v.split(".")[1]) > 6 for row in reader for k, v in row.items() if k != "level" and "." in v
+        )
+        assert has_long_decimal
+

@@ -163,10 +163,24 @@ def unnest_class(
     return out
 
 
+def round_dict(d: Any, precision: int | None = 6) -> Any:
+    """Recursively rounds floating point values in data structures (dicts, lists, tuples)."""
+    if precision is None or precision < 0:
+        return d
+    if isinstance(d, (float, np.floating)):
+        return round(float(d), precision)
+    elif isinstance(d, dict):
+        return {k: round_dict(v, precision) for k, v in d.items()}
+    elif isinstance(d, (list, tuple)):
+        return type(d)(round_dict(v, precision) for v in d)
+    return d
+
+
 def df_from_dict(
     metrics: dict[str, dict[int, SupportsFloat]] | dict[str, SupportsFloat],
     keys: Iterable[str],
     per_class: bool = False,
+    precision: int | None = 6,
     verbose: int = 1,
 ) -> pd.DataFrame:
     """Creates a pandas dataframe from polymorphic metrics dictionaries."""
@@ -225,7 +239,10 @@ def df_from_dict(
         for k, val in df_data.items():
             print(f"{k} ==> {val}")
 
-    return pd.DataFrame.from_dict(df_data).reindex(labels=[*id_cols, *target_keys], axis="columns")
+    res_df = pd.DataFrame.from_dict(df_data).reindex(labels=[*id_cols, *target_keys], axis="columns")
+    if precision is not None and precision >= 0:
+        res_df = res_df.round(precision)
+    return res_df
 
 
 # General

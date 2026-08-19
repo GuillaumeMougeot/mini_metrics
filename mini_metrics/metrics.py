@@ -29,6 +29,7 @@ from mini_metrics.helpers import (
     format_table,
     pretty_string_dict,
     retry_with_kwargs,
+    round_dict,
 )
 from mini_metrics.hierarchical import (
     MacroRankAccuracy,
@@ -490,12 +491,13 @@ def handle_per_class_metrics(
     metrics: dict[str, dict[int, float] | float | Any],
     output: str | None = None,
     verbose: int = 1,
+    precision: int | None = 6,
 ):
     if verbose > 2:
         print(pretty_string_dict(metrics))
         print()
     K = [k for k in get_all_metrics(simple=True) if k not in PER_CLASS_EXCEPTIONS]
-    df = df_from_dict(metrics, K, per_class=True, verbose=verbose)
+    df = df_from_dict(metrics, K, per_class=True, precision=precision, verbose=verbose)
     if verbose > 1 or (not output and verbose > 0):
         print("\nPER-CLASS METRIC TABLE")
         print(df)
@@ -614,6 +616,7 @@ def main(
     per_class: bool = False,
     pattern: str | re.Pattern | None = None,
     seed: int | None = None,
+    precision: int | None = 6,
     verbose: int = 1,
 ):
     if files is None:
@@ -661,7 +664,7 @@ def main(
             )
 
             if per_class:
-                handle_per_class_metrics(metrics, output_path, verbose)
+                handle_per_class_metrics(metrics, output_path, verbose=verbose, precision=precision)
                 continue
 
             if all:
@@ -677,7 +680,7 @@ def main(
                             print("Removed old", out_json)
                         os.remove(out_json)
                     with open(out_json, "w", encoding="utf8", newline=os.linesep) as f:
-                        json.dump(metrics, f)
+                        json.dump(round_dict(metrics, precision), f)
 
             if verbose > 0:
                 print(f"\nMETRIC TABLE[{output_path if output_path else file_path}]")
@@ -691,7 +694,7 @@ def main(
                     if verbose > 0:
                         print("Removed old", out_csv)
                     os.remove(out_csv)
-                df_from_dict(metrics, simple_metrics, verbose=verbose).to_csv(out_csv, index=False)
+                df_from_dict(metrics, simple_metrics, precision=precision, verbose=verbose).to_csv(out_csv, index=False)
 
 
 def cli():
@@ -799,6 +802,14 @@ def cli():
         help="Seed used for splitting the dataset when computing and applying the 'optimal threshold' via the `-O`/`--optimal` argument.",
     )
     parser.add_argument(
+        "-p",
+        "--precision",
+        type=int,
+        default=6,
+        required=False,
+        help="Number of decimal places (digits of precision) to round float values to when saving results (default: 6). Set to -1 for full precision.",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         type=int,
@@ -810,6 +821,9 @@ def cli():
     args = vars(parser.parse_args())
     if (args.pop("save_output", False) or args["output_name"]) and not args.get("output_dir", False):
         args["output_dir"] = "."
+
+    if args.get("precision") is not None and args["precision"] < 0:
+        args["precision"] = None
 
     return args
 
