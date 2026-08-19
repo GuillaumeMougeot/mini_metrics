@@ -64,9 +64,18 @@ class RankError(Metric):
 
 class RankAccuracy(AveragedMetric):
     name = "rank_accuracy"
-    columns = ("prediction", "prediction_made", "label", )
+    columns = (
+        "prediction",
+        "prediction_made",
+        "label",
+    )
 
-    def compute(self, df: MetricDF | MetricData, combinations: dict[str, tuple[str, ...]] | None = None, remove_abstain: bool = True):
+    def compute(
+        self,
+        df: MetricDF | MetricData,
+        combinations: dict[str, tuple[str, ...]] | None = None,
+        remove_abstain: bool = True,
+    ):
         if not combinations:
             return 0, 0
         child2parent = child2parent_from_combinations(combinations)

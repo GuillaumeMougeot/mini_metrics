@@ -33,9 +33,13 @@ def retry_with_kwargs(fn: Callable[..., R], *args: Any, **kwargs: Any) -> R:
 
 # Results and printing
 @overload
-def pretty_string_dict(metrics: dict, indent: int = 0, digits: int = 3, concatenate: Literal[True] = True) -> str: ...
+def pretty_string_dict(
+    metrics: dict, indent: int = 0, digits: int = 3, concatenate: Literal[True] = True
+) -> str: ...
 @overload
-def pretty_string_dict(metrics: dict, indent: int = 0, digits: int = 3, concatenate: Literal[False] = False) -> list[str]: ...
+def pretty_string_dict(
+    metrics: dict, indent: int = 0, digits: int = 3, concatenate: Literal[False] = False
+) -> list[str]: ...
 def pretty_string_dict(metrics: dict, indent: int = 0, digits: int = 3, concatenate: bool = True):
     """For printing all metrics."""
     parts = []

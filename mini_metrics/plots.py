@@ -11,14 +11,58 @@ from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 
 
-def parse_mini_metric(path: str):
+def normalize_path(path: str) -> str:
+    return os.path.abspath(path).replace("\\", "/")
+
+
+def get_df_names(paths: Sequence[str], pattern: str | re.Pattern | None = None) -> list[str]:
+    norm_paths = [normalize_path(p) for p in paths]
+    if pattern is not None:
+        compiled = re.compile(pattern) if isinstance(pattern, str) else pattern
+        names = []
+        for p in norm_paths:
+            m = compiled.search(p)
+            if not m or not m.groups():
+                raise ValueError(f"Pattern {pattern!r} did not match or had no capture group for path {p!r}")
+            names.append(m.group(1))
+        return names
+
+    if len(norm_paths) <= 1:
+        raw_names = norm_paths
+    else:
+        prefix = os.path.commonprefix(norm_paths)
+        reversed_paths = [p[::-1] for p in norm_paths]
+        rev_suffix = os.path.commonprefix(reversed_paths)
+        suffix = rev_suffix[::-1]
+
+        raw_names = []
+        for p in norm_paths:
+            stripped = p[len(prefix) :]
+            if suffix and stripped.endswith(suffix) and len(stripped) >= len(suffix):
+                stripped = stripped[: -len(suffix)] if len(suffix) > 0 else stripped
+            if not stripped:
+                stripped = p
+            raw_names.append(stripped)
+
+    formatted_names = []
+    for name in raw_names:
+        if len(name) > 20:
+            formatted_names.append(name[:17] + "...")
+        else:
+            formatted_names.append(name)
+    return formatted_names
+
+
+def parse_mini_metric(path: str, name: str | None = None):
     df = pd.read_csv(path)
     drop = df.apply(lambda x: len(x.unique()), axis=0).where(lambda x: x <= 1).dropna().index.tolist()
     df = df.drop(drop, axis=1)
     if "level" not in df.columns:
         df["level"] = 0
     df = df.set_index("level")
-    df["name"] = os.path.splitext(os.path.basename(path))[0]
+    if name is None:
+        name = get_df_names([path])[0]
+    df["name"] = name
     return df
 
 
@@ -41,14 +85,12 @@ def var_groups(df: pd.DataFrame) -> OrderedDict[str, pd.DataFrame]:
     df_theilU, df_other = split_cols(df_other, "^theilU")
     df_stand_micro, df_stand_macro = split_cols(df_stand, "^micro")
     df_rank_micro, df_rank_macro = split_cols(df_rank, "^micro")
-    dfs: OrderedDict[str, pd.DataFrame] = OrderedDict(
-        (
-            ("Standard (macro)", df_stand_macro),
-            ("Standard (micro)", df_stand_micro),
-            ("Theil's U", df_theilU),
-            ("Other", df_other),
-        )
-    )
+    dfs: OrderedDict[str, pd.DataFrame] = OrderedDict((
+        ("Standard (macro)", df_stand_macro),
+        ("Standard (micro)", df_stand_micro),
+        ("Theil's U", df_theilU),
+        ("Other", df_other),
+    ))
     if len(df_rank.columns):
         dfs["Rank (macro)"] = df_rank_macro
         dfs["Rank (micro)"] = df_rank_micro
@@ -154,14 +196,32 @@ def cli():
         required=False,
         help="Directory to store plots if supplied.",
     )
+    parser.add_argument(
+        "-r",
+        "--regex",
+        "--pattern",
+        type=str,
+        default=None,
+        required=False,
+        dest="pattern",
+        help="PERL regex pattern with a single capture group to extract name from absolute path.",
+    )
     return vars(parser.parse_args())
 
 
-def main(input: str | Sequence[str], output: str | None):
+def main(
+    input: str | Sequence[str],
+    output: str | None = None,
+    pattern: str | re.Pattern | None = None,
+    regex: str | re.Pattern | None = None,
+):
     if isinstance(input, str):
         input = [input]
     files = [f for p in input for f in glob(p)]
-    df = pd.concat(map(parse_mini_metric, files)).set_index("name", append=True)
+    pat = pattern if pattern is not None else regex
+    names = get_df_names(files, pattern=pat)
+    dfs = [parse_mini_metric(f, name=n) for f, n in zip(files, names)]
+    df = pd.concat(dfs).set_index("name", append=True)
     df_groups = var_groups(df)
     return make_plots(df_groups, output)
 

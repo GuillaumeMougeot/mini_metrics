@@ -351,7 +351,9 @@ class OptimalConfidenceThreshold(Metric):
         return sorted(best, key=lambda v: abs(v - best_mid))[0], len(base_df_data)
 
 
-def get_all_metrics(pattern: str | re.Pattern | None = None, simple: bool | None = None, hierarchical: bool | None = None):
+def get_all_metrics(
+    pattern: str | re.Pattern | None = None, simple: bool | None = None, hierarchical: bool | None = None
+):
     def metric_filter(name_obj: tuple[str, Metric]):
         name, obj = name_obj
         retval = True
@@ -403,7 +405,7 @@ def evaluate_all_metrics(
     combinations: dict[str, tuple[str, ...]] | None = None,
     pattern: str | re.Pattern | None = None,
     simple: bool | None = None,
-    hierarchical: bool | None = None
+    hierarchical: bool | None = None,
 ) -> dict[str, dict[int, float] | dict[str, tuple[float, float]] | float | Any]:
     metric_kwargs = {}
     if known_only:
@@ -583,7 +585,7 @@ def evaluate_file(
         combinations=combinations_data,
         pattern=pattern,
         simple=simple,
-        hierarchical=hierarchical
+        hierarchical=hierarchical,
     )
 
     return metrics

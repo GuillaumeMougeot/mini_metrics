@@ -1,6 +1,6 @@
 [project]
 name = "mini_metrics"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
   "numpy",
   "pandas",
@@ -101,7 +101,7 @@ dev = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.10.7,<0.11.0"]
+requires = ["uv_build>=0.12.5,<0.13"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]

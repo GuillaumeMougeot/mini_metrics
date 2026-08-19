@@ -120,15 +120,15 @@ class MetricData:
 
     def slice(self, start: int, end: int):
         """Zero-copy slice of all underlying arrays that are present."""
-        return type(self)(
-            **{f.name: val[start:end] for f in fields(self) if (val := getattr(self, f.name)) is not None}
-        )
+        return type(self)(**{
+            f.name: val[start:end] for f in fields(self) if (val := getattr(self, f.name)) is not None
+        })
 
     def take(self, indices: np.ndarray):
         """Advanced indexing across all arrays that are present."""
-        return type(self)(
-            **{f.name: val[indices] for f in fields(self) if (val := getattr(self, f.name)) is not None}
-        )
+        return type(self)(**{
+            f.name: val[indices] for f in fields(self) if (val := getattr(self, f.name)) is not None
+        })
 
     def to_dict(self) -> dict[str, np.ndarray]:
         return {f.name: value for f in fields(self) if (value := getattr(self, f.name)) is not None}
