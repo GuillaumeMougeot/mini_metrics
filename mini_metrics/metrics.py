@@ -705,6 +705,7 @@ def cli():
     )
     parser.add_argument(
         "-n",
+        "--output_name",
         "--output-name",
         type=str,
         default=None,
@@ -713,6 +714,7 @@ def cli():
     )
     parser.add_argument(
         "-d",
+        "--output_dir",
         "--output-dir",
         type=str,
         default=None,
@@ -751,12 +753,14 @@ def cli():
     parser.add_argument(
         "-K",
         "--known_only",
+        "--known-only",
         action="store_true",
         required=False,
         help="Compute statistics only for classes known by the model (default=False).",
     )
     parser.add_argument(
         "--label_filter",
+        "--label-filter",
         type=str,
         nargs="+",
         help="A list of or a file containing (level 0/species) labels to subset the results by.",
@@ -771,6 +775,7 @@ def cli():
     parser.add_argument(
         "-P",
         "--per_class",
+        "--per-class",
         action="store_true",
         required=False,
         help="Compute per-class statistics.",
