@@ -242,9 +242,22 @@ def render_ascii_plot(vgroup: str, df: pd.DataFrame, bar_width: int = 40) -> str
 
     max_metric_len = max(len(str(m)) for m in metrics)
 
+    num_groups = len(groups)
+    num_sub_rows = num_groups if num_groups % 2 == 1 else num_groups + 1
+    mid_sub_row = num_sub_rows // 2
+
+    grp_sub_row = {}
+    for gi in range(num_groups):
+        if num_groups % 2 == 1:
+            grp_sub_row[gi] = gi
+        else:
+            grp_sub_row[gi] = gi if gi < num_groups // 2 else gi + 1
+
     for col in metrics:
-        buf = [" "] * bar_width
-        for grp in groups:
+        sub_row_bufs = [[" "] * bar_width for _ in range(num_sub_rows)]
+
+        for gi, grp in enumerate(groups):
+            r_idx = grp_sub_row[gi]
             grp_name, sym = grp_symbols[grp]
             dfg = df_flat if grp is None else df_flat[df_flat[group_var] == grp]
             for _, row in dfg.iterrows():
@@ -264,13 +277,18 @@ def render_ascii_plot(vgroup: str, df: pd.DataFrame, bar_width: int = 40) -> str
                 for offset, char in enumerate(text_to_draw):
                     target_pos = pos + offset
                     if target_pos < bar_width:
-                        buf[target_pos] = char
+                        sub_row_bufs[r_idx][target_pos] = char
 
-        metric_padded = str(col).ljust(max_metric_len)
-        row_str = "".join(buf)
-        lines.append(f"{metric_padded} |{row_str}|")
+        for r_idx in range(num_sub_rows):
+            if r_idx == mid_sub_row:
+                metric_prefix = str(col).ljust(max_metric_len)
+            else:
+                metric_prefix = " " * max_metric_len
+            row_str = "".join(sub_row_bufs[r_idx])
+            lines.append(f"{metric_prefix} |{row_str}|")
 
-    lines.append("")
+        lines.append("")
+
     return "\n".join(lines)
 
 
