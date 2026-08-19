@@ -1,6 +1,6 @@
 import pytest
 
-from mini_metrics.plots import cli, get_df_names, normalize_path
+from mini_metrics.plots import cli, get_df_names, main, normalize_path, parse_mini_metric
 
 
 def test_normalize_path():
@@ -88,3 +88,30 @@ def test_cli_regex_arg(monkeypatch):
     parsed = cli()
     assert parsed["input"] == ["file1.csv", "file2.csv"]
     assert parsed["pattern"] == r"/([^/]+)\.csv$"
+
+
+def test_parse_mini_metric_single_row(tmp_path):
+    csv_file = tmp_path / "single_row_metrics.csv"
+    csv_file.write_text("level,accuracy,precision,recall,f1\n0,0.85,0.80,0.88,0.84\n")
+    df = parse_mini_metric(str(csv_file))
+    assert "accuracy" in df.columns
+    assert "precision" in df.columns
+    assert df.loc[0, "accuracy"] == pytest.approx(0.85)
+
+
+def test_degenerate_columns_dropped_across_combined_df(tmp_path):
+    csv1 = tmp_path / "run1_metrics.csv"
+    csv1.write_text("level,accuracy,coverage\n0,0.80,1.0\n")
+    csv2 = tmp_path / "run2_metrics.csv"
+    csv2.write_text("level,accuracy,coverage\n0,0.90,1.0\n")
+
+    # Run main
+    plts = main([str(csv1), str(csv2)], output=None)
+    # Standard (macro) plot should contain accuracy, but NOT coverage (since coverage is constant 1.0)
+    std_plot = plts.get("Standard (macro)")
+    assert std_plot is not None
+    yticklabels = [t.get_text() for t in std_plot.get_yticklabels()]
+    assert "accuracy" in yticklabels
+    assert "coverage" not in yticklabels
+
+

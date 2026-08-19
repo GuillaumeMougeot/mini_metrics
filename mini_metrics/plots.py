@@ -55,8 +55,9 @@ def get_df_names(paths: Sequence[str], pattern: str | re.Pattern | None = None) 
 
 def parse_mini_metric(path: str, name: str | None = None):
     df = pd.read_csv(path)
-    drop = df.apply(lambda x: len(x.unique()), axis=0).where(lambda x: x <= 1).dropna().index.tolist()
-    df = df.drop(drop, axis=1)
+    if len(df) > 1:
+        drop = df.apply(lambda x: len(x.unique()), axis=0).where(lambda x: x <= 1).dropna().index.tolist()
+        df = df.drop(drop, axis=1)
     if "level" not in df.columns:
         df["level"] = 0
     df = df.set_index("level")
@@ -64,6 +65,7 @@ def parse_mini_metric(path: str, name: str | None = None):
         name = get_df_names([path])[0]
     df["name"] = name
     return df
+
 
 
 STANDARD_METRICS = ("accuracy", "precision", "recall", "f1")
@@ -136,6 +138,7 @@ def plot_df(
             color = colors[gi]
         yoff = ((gi + 0.5) / len(groups) - 0.5) * 0.75
         dfg = df if grp is None else df[df[group_var] == grp]
+        pts = None
         for col in metrics:
             pts = ax.scatter(dfg[col], [col] * len(dfg), c=[color], s=125)
             pts.set_offsets([(x, y + yoff) for i, (x, y) in enumerate(pts.get_offsets())])
@@ -150,7 +153,7 @@ def plot_df(
                     verticalalignment="center",
                     fontweight="bold",
                 )
-        else:
+        if pts is not None:
             els.append(pts)
     ax.legend(
         handles=els,
@@ -165,6 +168,8 @@ def plot_df(
 def make_plots(groups: Mapping[str, pd.DataFrame], out: str | None = None):
     plts = dict()
     for vgroup, vdf in groups.items():
+        if vdf.empty or len(vdf.columns) == 0:
+            continue
         fig, ax = plt.subplots(1, 1, figsize=(10, 5))
         tplt = plot_df(vdf, ax=ax)
         tplt.set_title(vgroup)
@@ -176,6 +181,7 @@ def make_plots(groups: Mapping[str, pd.DataFrame], out: str | None = None):
             plt.savefig(os.path.join(out, fname))
         plts[vgroup] = tplt
     return plts
+
 
 
 def cli():
@@ -222,8 +228,15 @@ def main(
     names = get_df_names(files, pattern=pat)
     dfs = [parse_mini_metric(f, name=n) for f, n in zip(files, names)]
     df = pd.concat(dfs).set_index("name", append=True)
+
+    if len(df) > 1:
+        drop = df.apply(lambda x: len(x.dropna().unique()), axis=0).where(lambda x: x <= 1).dropna().index.tolist()
+        if drop:
+            df = df.drop(drop, axis=1)
+
     df_groups = var_groups(df)
     return make_plots(df_groups, output)
+
 
 
 def run():
