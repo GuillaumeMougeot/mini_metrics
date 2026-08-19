@@ -380,17 +380,19 @@ def get_all_metrics(
         OptimalConfidenceThreshold,
     ]
     if hierarchical:
-        metric_classes.extend([
-            MacroRankAccuracy,
-            MacroRankPrecision,
-            MacroRankRecall,
-            MacroRankF1,
-            MicroRankAccuracy,
-            MicroRankPrecision,
-            MicroRankRecall,
-            MicroRankF1,
-            RankError,
-        ])
+        metric_classes.extend(
+            [
+                MacroRankAccuracy,
+                MacroRankPrecision,
+                MacroRankRecall,
+                MacroRankF1,
+                MicroRankAccuracy,
+                MicroRankPrecision,
+                MicroRankRecall,
+                MicroRankF1,
+                RankError,
+            ]
+        )
     metrics = OrderedDict((m_cls.name, m_cls()) for m_cls in metric_classes)
     return OrderedDict(filter(metric_filter, metrics.items()))
 

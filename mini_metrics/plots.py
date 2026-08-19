@@ -67,7 +67,6 @@ def parse_mini_metric(path: str, name: str | None = None):
     return df
 
 
-
 STANDARD_METRICS = ("accuracy", "precision", "recall", "f1")
 
 
@@ -87,12 +86,14 @@ def var_groups(df: pd.DataFrame) -> OrderedDict[str, pd.DataFrame]:
     df_theilU, df_other = split_cols(df_other, "^theilU")
     df_stand_micro, df_stand_macro = split_cols(df_stand, "^micro")
     df_rank_micro, df_rank_macro = split_cols(df_rank, "^micro")
-    dfs: OrderedDict[str, pd.DataFrame] = OrderedDict((
-        ("Standard (macro)", df_stand_macro),
-        ("Standard (micro)", df_stand_micro),
-        ("Theil's U", df_theilU),
-        ("Other", df_other),
-    ))
+    dfs: OrderedDict[str, pd.DataFrame] = OrderedDict(
+        (
+            ("Standard (macro)", df_stand_macro),
+            ("Standard (micro)", df_stand_micro),
+            ("Theil's U", df_theilU),
+            ("Other", df_other),
+        )
+    )
     if len(df_rank.columns):
         dfs["Rank (macro)"] = df_rank_macro
         dfs["Rank (micro)"] = df_rank_micro
@@ -183,6 +184,95 @@ def make_plots(groups: Mapping[str, pd.DataFrame], out: str | None = None):
     return plts
 
 
+SYMBOLS = ["*", "+", "o", "x", "^", "#", "@", "%", "v", "s", "d"]
+
+
+def render_ascii_plot(vgroup: str, df: pd.DataFrame, bar_width: int = 40) -> str:
+    if df.empty or len(df.columns) == 0:
+        return ""
+
+    index = df.index
+    names = index.names
+    groups = [None]
+    group_var = None
+    if names is not None and len(names) > 1:
+        assert len(names) == 2, names
+        index_var, group_var = names
+        groups = sorted(list(set([v for _, v in index])))
+    else:
+        assert len(names) == 1, names
+        index_var = names[0]
+
+    metrics = list(df.columns)
+    df_flat = df.reset_index(drop=False)
+
+    all_vals = []
+    for col in metrics:
+        vals = pd.to_numeric(df_flat[col], errors="coerce").dropna()
+        all_vals.extend(vals.tolist())
+
+    if not all_vals:
+        return ""
+
+    min_val = min(all_vals)
+    max_val = max(all_vals)
+    if min_val == max_val:
+        min_val -= 0.5
+        max_val += 0.5
+
+    grp_symbols = {}
+    for i, grp in enumerate(groups):
+        symbol = SYMBOLS[i % len(SYMBOLS)]
+        grp_name = str(grp).removesuffix("_metrics") if grp is not None else "default"
+        grp_symbols[grp] = (grp_name, symbol)
+
+    lines = []
+    lines.append("=" * 60)
+    lines.append(f"  {vgroup}")
+    lines.append("=" * 60)
+
+    legend_items = [f"{name} ({sym})" for _, (name, sym) in grp_symbols.items()]
+    lines.append("Legend: " + ", ".join(legend_items))
+
+    min_str = f"{min_val:.2f}"
+    max_str = f"{max_val:.2f}"
+    scale_bar = "-" * bar_width
+    lines.append(f"Scale:  {min_str:>6} |{scale_bar}| {max_str}")
+    lines.append("")
+
+    max_metric_len = max(len(str(m)) for m in metrics)
+
+    for col in metrics:
+        buf = [" "] * bar_width
+        for grp in groups:
+            grp_name, sym = grp_symbols[grp]
+            dfg = df_flat if grp is None else df_flat[df_flat[group_var] == grp]
+            for _, row in dfg.iterrows():
+                val = row[col]
+                if pd.isna(val):
+                    continue
+                lbl = str(row[index_var])
+                try:
+                    val_float = float(val)
+                except (ValueError, TypeError):
+                    continue
+
+                pos = int((val_float - min_val) / (max_val - min_val) * (bar_width - 1))
+                pos = max(0, min(bar_width - 1, pos))
+
+                text_to_draw = f"{sym}{lbl}"
+                for offset, char in enumerate(text_to_draw):
+                    target_pos = pos + offset
+                    if target_pos < bar_width:
+                        buf[target_pos] = char
+
+        metric_padded = str(col).ljust(max_metric_len)
+        row_str = "".join(buf)
+        lines.append(f"{metric_padded} |{row_str}|")
+
+    lines.append("")
+    return "\n".join(lines)
+
 
 def cli():
     parser = ArgumentParser(prog="mini_metric_plot", description="Plot and compare multiple mini_metrics")
@@ -212,6 +302,12 @@ def cli():
         dest="pattern",
         help="PERL regex pattern with a single capture group to extract name from absolute path.",
     )
+    parser.add_argument(
+        "-a",
+        "--ascii",
+        action="store_true",
+        help="Print ASCII representations of plots to stdout.",
+    )
     return vars(parser.parse_args())
 
 
@@ -220,6 +316,7 @@ def main(
     output: str | None = None,
     pattern: str | re.Pattern | None = None,
     regex: str | re.Pattern | None = None,
+    ascii: bool = False,
 ):
     if isinstance(input, str):
         input = [input]
@@ -230,13 +327,24 @@ def main(
     df = pd.concat(dfs).set_index("name", append=True)
 
     if len(df) > 1:
-        drop = df.apply(lambda x: len(x.dropna().unique()), axis=0).where(lambda x: x <= 1).dropna().index.tolist()
+        drop = (
+            df.apply(lambda x: len(x.dropna().unique()), axis=0)
+            .where(lambda x: x <= 1)
+            .dropna()
+            .index.tolist()
+        )
         if drop:
             df = df.drop(drop, axis=1)
 
     df_groups = var_groups(df)
-    return make_plots(df_groups, output)
 
+    if ascii:
+        for vgroup, vdf in df_groups.items():
+            ascii_str = render_ascii_plot(vgroup, vdf)
+            if ascii_str:
+                print(ascii_str)
+
+    return make_plots(df_groups, output)
 
 
 def run():

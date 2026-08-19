@@ -115,3 +115,42 @@ def test_degenerate_columns_dropped_across_combined_df(tmp_path):
     assert "coverage" not in yticklabels
 
 
+def test_render_ascii_plot(tmp_path):
+    csv1 = tmp_path / "run1_metrics.csv"
+    csv1.write_text("level,accuracy,precision\n0,0.80,0.75\n")
+    csv2 = tmp_path / "run2_metrics.csv"
+    csv2.write_text("level,accuracy,precision\n0,0.90,0.85\n")
+
+    import io
+    import sys
+
+    captured = io.StringIO()
+    sys.stdout = captured
+    try:
+        main([str(csv1), str(csv2)], output=None, ascii=True)
+    finally:
+        sys.stdout = sys.__stdout__
+
+    out_str = captured.getvalue()
+    assert "Standard (macro)" in out_str
+    assert "Legend:" in out_str
+    assert "accuracy" in out_str
+    assert "precision" in out_str
+
+
+def test_main_ascii_flag_false(tmp_path):
+    csv1 = tmp_path / "run1_metrics.csv"
+    csv1.write_text("level,accuracy\n0,0.80\n")
+
+    import io
+    import sys
+
+    captured = io.StringIO()
+    sys.stdout = captured
+    try:
+        main([str(csv1)], output=None, ascii=False)
+    finally:
+        sys.stdout = sys.__stdout__
+
+    out_str = captured.getvalue()
+    assert out_str == ""
