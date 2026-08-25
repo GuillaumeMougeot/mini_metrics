@@ -636,7 +636,7 @@ def evaluate_file(
         df = df.take(df.index[::subsample])  # type: ignore
     if label_filter is not None:
         df = filter_df(df, label_filter)
-    assert combinations is None or ((combinations is not None) == bool(hierarchical))
+
     if combinations is not None:
         combinations_data = df.add_combinations(combinations)
 
