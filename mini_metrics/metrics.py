@@ -42,7 +42,7 @@ from mini_metrics.hierarchical import (
     MicroRankRecall,
     RankError,
 )
-from mini_metrics.simple import shannon_entropy
+from mini_metrics.simple import mean, shannon_entropy
 
 
 # Accuracy
@@ -120,14 +120,35 @@ class F1(AveragedMetric):
     precision-recall domain mismatch, penalizing both false positives (hallucinations)
     and false negatives (misses) proportionally to their class activity without introducing
     asymmetric blind spots.
+
+    When `balanced=True`, modulates the resulting F1 by the aggregate Precision-Recall
+    concordance factor:
+        \widetilde{F}_1 = F_1 \cdot \left(1 - \frac{|\bar{P} - \bar{R}|}{\bar{P} + \bar{R}}\right)^\gamma
     """
 
     name: str = "f1"
     should_cast_float = False
     _is_simple = True
+    balanced: bool = False
+    gamma: float = 2.0
+
+    def __init__(
+        self,
+        balanced: bool = False,
+        gamma: float = 2.0,
+        *args,
+        **kwargs,
+    ):
+        self.balanced = balanced
+        self.gamma = gamma
+        super().__init__(*args, **kwargs)
 
     def compute_all_groups(
-        self, df: MetricDF, *args, macro: bool = True, **kwargs
+        self,
+        df: MetricDF,
+        *args,
+        macro: bool = True,
+        **kwargs,
     ) -> dict[str, tuple[float, float]]:
         Ps = MicroPrecision().compute_all_groups(df, *args, macro=macro, **kwargs)
         Rs = MicroRecall().compute_all_groups(df, *args, macro=macro, **kwargs)
@@ -136,18 +157,43 @@ class F1(AveragedMetric):
         clss = []
         ws: list[float] = []
         f1s: list[float] = []
+        p_vals: list[float] = []
+        r_vals: list[float] = []
+        p_ws: list[float] = []
+        r_ws: list[float] = []
+
         for cls in set(chain(Rs.keys(), Ps.keys())):
-            P, R = Ps.get(cls, E)[0], Rs.get(cls, E)[0]
-            w = apply_macro_weight(Rs.get(cls, E)[1] + Ps.get(cls, E)[1], macro)
+            P, P_supp = Ps.get(cls, E)
+            R, R_supp = Rs.get(cls, E)
+            w = apply_macro_weight(R_supp + P_supp, macro)
+
             clss.append(cls)
             ws.append(w)
+
             if not isfinite(P) or not isfinite(R):
                 f1 = float("nan")
-            elif P == 0 or R == 0:
+            elif P == 0.0 or R == 0.0:
                 f1 = 0.0
             else:
-                f1 = 2 / (1 / P + 1 / R)
+                f1 = 2.0 / (1.0 / P + 1.0 / R)
+
             f1s.append(f1)
+            p_vals.append(P)
+            p_ws.append(apply_macro_weight(P_supp, macro=macro))
+            r_vals.append(R)
+            r_ws.append(apply_macro_weight(R_supp, macro=macro))
+
+        # Macro-concordance modulation
+        if self.balanced and f1s:
+            p_agg, r_agg = mean(p_vals, p_ws, skip_nonfinite=True), mean(r_vals, r_ws, skip_nonfinite=True)
+
+            if isfinite(p_agg) and isfinite(r_agg) and (p_agg + r_agg) > 0.0 and p_agg > 0.0 and r_agg > 0.0:
+                macro_balance_factor = 1.0 - abs(p_agg - r_agg) / (p_agg + r_agg)
+                scale = macro_balance_factor**self.gamma
+            else:
+                scale = 0.0
+
+            f1s = [(f * scale if isfinite(f) else f) for f in f1s]
 
         return {cls: (f1, w) for cls, w, f1 in zip(clss, ws, f1s)}
 
@@ -160,8 +206,13 @@ class MicroF1(F1, MicroMetric):
     pass
 
 
+class MacroBalancedF1(MacroF1):
+    name = "macro_balanced_f1"
+    balanced = True
+
+
 # Theil's U / Uncertainty coefficient
-class _TheilU(AveragedMetric):
+class TheilU(Metric):
     """Theil's U metric."""
 
     name: str = "theilU"
@@ -171,40 +222,24 @@ class _TheilU(AveragedMetric):
         "prediction_made",
     )
 
-    def compute_all_groups(
-        self, df: MetricDF | MetricData, *args, macro: bool = False, **kwargs
-    ) -> dict[Any, tuple[float, float]]:
+    def compute(self, df: MetricDF | MetricData):
         lab, pred, pm = df.label, df.prediction, df.prediction_made
         assert lab is not None
         assert pred is not None
         assert pm is not None
-        lab, pred = lab[pm], pred[pm]
+        # lab, pred = lab[pm], pred[pm]
         classes = sorted(list(set(lab).union(pred)))
+        if len(classes) == 0:
+            return float("nan"), 0
         C = confusion_matrix(lab, pred, labels=classes).astype(float)
         N, CS, RS = [C.sum(a) for a in [None, 0, 1]]
         if N <= 1:
-            return {c: (float("nan"), 0.0) for c in classes}
+            float("nan"), N
         eN = np.clip(shannon_entropy(RS), 0.0, np.inf)
         if eN <= 0.0:
-            return {c: (float("nan"), 0.0) for c in classes}
-
+            return float("nan"), N
         eCS = np.fromiter(map(shannon_entropy, C.T), float)
-
-        results = {}
-        for idx, c in enumerate(classes):
-            if CS[idx] <= 0:
-                continue
-            val = float(1 - eCS[idx].item() / eN.item())
-            results[c] = (val, apply_macro_weight(CS[idx].item(), macro))
-        return results
-
-
-class MacroTheilU(_TheilU, MacroMetric):
-    pass
-
-
-class TheilU(_TheilU, MicroMetric):
-    name = "theilU"
+        return (1 - mean(eCS / eN, CS, skip_nonfinite=True)), N
 
 
 # Coverage
@@ -222,6 +257,24 @@ class Coverage(AveragedMetric):
 
 class MicroCoverage(Coverage, MicroMetric):
     name = "coverage"
+
+
+class InformationTransfer(Metric):
+    name = "information_transfer"
+    columns = (
+        "label",
+        "prediction",
+        "prediction_made",
+    )
+
+    def __init__(self):
+        super().__init__()
+        self._theil_u = TheilU()
+
+    def compute(self, df: MetricDF | MetricData):
+        tu, n = self._theil_u.compute(df)
+        cov = np.mean(df.prediction_made).item()
+        return (tu * cov, n)
 
 
 # Proportion of known labels
@@ -285,27 +338,51 @@ class ConfidenceStats(Metric):
 # Optimal Confidence Threshold
 class OptimalConfidenceThreshold(Metric):
     name: str = "optimal_confidence_threshold"
-    breaks: int = 15
-    depth: int = 3
-    eps: float = 1e-3
     crit: type[Metric]
     target: Callable[[Iterable[float]], float] = max
-    columns = (*(set(COLUMNS) - set(OPTIONAL_COLUMNS)), "known_label")
+    columns = (
+        *(set(COLUMNS) - set(OPTIONAL_COLUMNS)),
+        "prediction_level",
+        "known_label",
+    )
 
-    def __init__(self, crit: type[Metric] = MacroF1, *args, **kwargs):
+    def __init__(
+        self,
+        crit: type[Metric] = MacroF1,
+        use_quantiles: bool = True,
+        breaks: int = 15,
+        depth: int = 3,
+        eps: float = 1e-3,
+        *args,
+        **kwargs,
+    ):
         self.crit = crit
-        super().__init__(*args, *kwargs)
+        self.use_quantiles = use_quantiles
+        self.breaks = breaks
+        self.depth = depth
+        self.eps = eps
+        super().__init__(*args, **kwargs)
 
     def compute(self, df: MetricDF | MetricData, verbose: int = 1, **kwargs) -> tuple[float, int]:
         base_df_data = df.copy().data if isinstance(df, MetricDF) else df
         base_dict = base_df_data.to_dict()
+        confs = np.asarray(base_dict["confidence"], dtype=np.float64)
+
         crit = self.crit()
         crit.is_per_level = False
 
         res: dict[float, float] = {}
 
-        def evaluate(t: float):
-            if t not in res:
+        def u_to_tau(u: float) -> float:
+            """Maps unit search variable u in [0, 1] to threshold tau."""
+            if self.use_quantiles:
+                return float(np.quantile(confs, np.clip(u, 0.0, 1.0)))
+            return float(u)
+
+        def evaluate(u: float) -> float:
+            u_key = round(float(u), 7)
+            if u_key not in res:
+                t = u_to_tau(u_key)
                 tarr = np.full(len(base_df_data), t, dtype=np.float64)
                 pred_made = base_dict["confidence"] >= tarr
                 correct = pred_made * ((base_dict["prediction"] == base_dict["label"]) * 2 - 1)
@@ -318,45 +395,53 @@ class OptimalConfidenceThreshold(Metric):
                     "correct": correct,
                 }
                 fast_df = MetricDF(fast_dict, _validated=True)
-                res[t] = crit(fast_df, **kwargs)
-            return res[t]
+                res[u_key] = crit(fast_df, **kwargs)
+            return res[u_key]
 
+        steps_per_tier = self.breaks // self.depth
         with tqdm(
-            total=(self.breaks // self.depth + 1) * self.depth,
-            desc="Optimizing threshold",
+            total=(steps_per_tier + 1) * self.depth,
+            desc="Optimizing threshold" + (" (quantiles)" if self.use_quantiles else " (linear)"),
             leave=verbose > 1,
             disable=verbose < 1,
         ) as pbar:
-            smi, sma = 0, 1
+            smi, sma = 0.0, 1.0
             for _ in range(self.depth):
-                step_size = (sma - smi) / (self.breaks // self.depth)
-                for t in [smi + i * step_size for i in range(self.breaks // self.depth + 1)]:
-                    evaluate(t)
+                step_size = (sma - smi) / steps_per_tier
+                for u in [smi + i * step_size for i in range(steps_per_tier + 1)]:
+                    evaluate(u)
                     pbar.update(1)
+
                 target_val = self.target(res.values())
-                best = [t for t, v in res.items() if abs(v - target_val) <= self.eps]
+                best = [u for u, v in res.items() if abs(v - target_val) <= self.eps]
                 mi, ma = min(best), max(best)
+
                 if mi == smi and ma == sma:
                     break
-                nsmi, nsma = max(0, mi - step_size), min(1, ma + step_size)
+
+                nsmi, nsma = max(0.0, mi - step_size), min(1.0, ma + step_size)
                 if nsmi == smi and nsma == sma:
                     break
                 smi, sma = nsmi, nsma
 
         target_val = self.target(res.values())
-        best = [t for t, v in res.items() if abs(v - target_val) <= self.eps]
+        best = [u for u, v in res.items() if abs(v - target_val) <= self.eps]
 
         if not best:
             raise RuntimeError(f"No values close to {self.target}(values)={target_val}")
+
+        best_mid = (min(best) + max(best)) / 2.0
+        best_u = sorted(best, key=lambda v: abs(v - best_mid))[0]
+        best_tau = u_to_tau(best_u)
+
         if len(best) > 1 and verbose > 1:
             print(
-                f"Found {len(best)} optimal thresholds at: ["
+                f"Found {len(best)} optimal positions at u: ["
                 + ", ".join(f"{v:.3f}" for v in sorted(best))
-                + "]"
+                + f"] -> tau: {best_tau:.3f}"
             )
 
-        best_mid = (min(best) + max(best)) / 2
-        return sorted(best, key=lambda v: abs(v - best_mid))[0], len(base_df_data)
+        return best_tau, len(base_df_data)
 
 
 def get_all_metrics(
@@ -559,7 +644,7 @@ def evaluate_file(
         df, calib = df.split((0.9, 0.1), seed=seed)
         if verbose > 1:
             print(f"Computing optimal threshold on {len(calib)} samples, keeping {len(df)} for metrics.")
-        opt_threshold = OptimalConfidenceThreshold(MacroF1)(calib, verbose=verbose)
+        opt_threshold = OptimalConfidenceThreshold(MacroBalancedF1)(calib, verbose=verbose)
         if not per_class:
             precalculated["optimal_confidence_threshold"] = opt_threshold
         if isinstance(opt_threshold, dict):
@@ -694,7 +779,9 @@ def main(
                     if verbose > 0:
                         print("Removed old", out_csv)
                     os.remove(out_csv)
-                df_from_dict(metrics, simple_metrics, precision=precision, verbose=verbose).to_csv(out_csv, index=False)
+                df_from_dict(metrics, simple_metrics, precision=precision, verbose=verbose).to_csv(
+                    out_csv, index=False
+                )
 
 
 def cli():

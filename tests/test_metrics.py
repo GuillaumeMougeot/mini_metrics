@@ -34,10 +34,15 @@ def test_main_with_example_files(tmp_path, examples_dir, filename_base):
                 try:
                     exp_val = float(expected_row[key])
                     act_val = float(actual_row[key])
-                    assert act_val == pytest.approx(exp_val, rel=1e-5)
+                    diff = act_val - exp_val
+                    assert act_val == pytest.approx(exp_val, rel=1e-5), (
+                        f"Metric '{key}': actual {act_val} != expected {exp_val} (diff: {diff})"
+                    )
                 except ValueError:
                     # If it's just text (like a name or ID), compare normally
-                    assert actual_row[key] == expected_row[key]
+                    assert actual_row[key] == expected_row[key], (
+                        f"Column '{key}': actual {actual_row[key]} != expected {expected_row[key]}"
+                    )
 
 
 def test_precision_options(tmp_path, examples_dir):
@@ -77,4 +82,3 @@ def test_precision_options(tmp_path, examples_dir):
             len(v.split(".")[1]) > 6 for row in reader for k, v in row.items() if k != "level" and "." in v
         )
         assert has_long_decimal
-

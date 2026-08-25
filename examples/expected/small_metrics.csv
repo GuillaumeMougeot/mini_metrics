@@ -1,2 +1,2 @@
 level,accuracy,precision,recall,f1,micro_accuracy,micro_precision,micro_recall,micro_f1,theilU,coverage,vocabulary_coverage,optimal_confidence_threshold
-0,0.617915,0.717557,0.617915,0.601855,0.663158,0.663158,0.663158,0.663158,0.843484,1.0,1.0,0.16
+0,0.617915,0.717557,0.617915,0.601855,0.663158,0.663158,0.663158,0.663158,0.843484,1.0,1.0,0.156636
