@@ -134,13 +134,15 @@ class F1(AveragedMetric):
 
     def __init__(
         self,
-        balanced: bool = False,
-        gamma: float = 2.0,
+        balanced: bool | None = None,
+        gamma: float | None = None,
         *args,
         **kwargs,
     ):
-        self.balanced = balanced
-        self.gamma = gamma
+        if balanced is not None:
+            self.balanced = balanced
+        if gamma is not None:
+            self.gamma = gamma
         super().__init__(*args, **kwargs)
 
     def compute_all_groups(
@@ -609,6 +611,9 @@ def evaluate_file(
     pattern: str | re.Pattern | None = None,
     simple: bool | None = None,
     hierarchical: bool | None = None,
+    use_quantiles: bool = True,
+    eps: float = 1e-3,
+    opt_crit: type[Metric] = MacroBalancedF1,
     seed: int | None = None,
     verbose: int = 1,
 ) -> dict:
@@ -644,11 +649,17 @@ def evaluate_file(
         df, calib = df.split((0.9, 0.1), seed=seed)
         if verbose > 1:
             print(f"Computing optimal threshold on {len(calib)} samples, keeping {len(df)} for metrics.")
-        opt_threshold = OptimalConfidenceThreshold(MacroBalancedF1)(calib, verbose=verbose)
+        opt_threshold = OptimalConfidenceThreshold(
+            crit=opt_crit,
+            use_quantiles=use_quantiles,
+            eps=eps,
+        )(calib, verbose=verbose)
         if not per_class:
             precalculated["optimal_confidence_threshold"] = opt_threshold
         if isinstance(opt_threshold, dict):
             threshold = [float(v) for _, v in sorted(opt_threshold.items(), key=lambda x: x[0])]
+        elif isinstance(opt_threshold, (float, int)):
+            threshold = float(opt_threshold)
 
     if threshold is not None:
         lvls = sorted(set(df.level))
