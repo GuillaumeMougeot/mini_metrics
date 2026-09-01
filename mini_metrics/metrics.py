@@ -637,10 +637,10 @@ def evaluate_file(
     precalculated = {}
     combinations_data = None
 
-    if subsample is not None and subsample != 1:
-        df = df.take(df.index[::subsample])  # type: ignore
     if label_filter is not None:
         df = filter_df(df, label_filter)
+    if subsample is not None and subsample != 1:
+        df, _ = df.split((1 / subsample, 1 - 1 / subsample), seed=seed)
 
     if combinations is not None:
         combinations_data = df.add_combinations(combinations)
