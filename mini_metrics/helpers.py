@@ -177,7 +177,12 @@ def round_dict(d: Any, precision: int | None = 6) -> Any:
 
 
 def df_from_dict(
-    metrics: dict[str, dict[int, SupportsFloat]] | dict[str, SupportsFloat],
+    metrics: (
+        dict[str, dict[int, SupportsFloat]]
+        | dict[str, SupportsFloat]
+        | dict[str, dict[int, dict[Any, tuple[float, float]]]]
+        | dict[str, Any]
+    ),
     keys: Iterable[str],
     per_class: bool = False,
     precision: int | None = 6,
@@ -214,7 +219,7 @@ def df_from_dict(
         # Standard leveled parsing
         first_val = next(iter(filtered_metrics.values()))
         if isinstance(first_val, dict):
-            levels = sorted(int(k) for k in first_val.keys())  # ty:ignore[invalid-argument-type]
+            levels = sorted(int(k) for k in first_val.keys())
         else:
             levels = [0]
 
@@ -248,7 +253,7 @@ def df_from_dict(
 # General
 def group_map[R](
     df: MetricDF | MetricData,
-    group_idx: Iterable[np.ndarray],
+    group_idx: Iterable[np.ndarray | pd.Index | list[int] | None],
     func: Callable[Concatenate[MetricData, ...], R],
     *args,
     verbose: int = 1,

@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterable
 from itertools import chain
 from math import isfinite
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast, overload
 
 import numpy as np
 from sklearn.metrics import confusion_matrix
@@ -78,8 +78,12 @@ class Precision(AveragedMetric):
     name: str = "precision"
     by: str = "prediction"
 
-    def compute(self, df: MetricDF | MetricData):
-        return cast(float, Accuracy().compute(df))
+    def __init__(self):
+        super().__init__()
+        self._accuracy = Accuracy()
+
+    def compute(self, df: MetricDF | MetricData) -> tuple[float, int]:
+        return self._accuracy.compute(df)
 
 
 class MacroPrecision(Precision, MacroMetric):
@@ -96,8 +100,12 @@ class Recall(AveragedMetric):
 
     name: str = "recall"
 
-    def compute(self, df: MetricDF | MetricData):
-        return cast(float, Accuracy().compute(df, remove_abstain=False))
+    def __init__(self):
+        super().__init__()
+        self._accuracy = Accuracy()
+
+    def compute(self, df: MetricDF | MetricData) -> tuple[float, int]:
+        return self._accuracy.compute(df, remove_abstain=False)
 
 
 class MacroRecall(Recall, MacroMetric):
@@ -144,6 +152,8 @@ class F1(AveragedMetric):
         if gamma is not None:
             self.gamma = gamma
         super().__init__(*args, **kwargs)
+        self._precision = MicroPrecision()
+        self._recall = MicroRecall()
 
     def compute_all_groups(
         self,
@@ -152,8 +162,8 @@ class F1(AveragedMetric):
         macro: bool = True,
         **kwargs,
     ) -> dict[str, tuple[float, float]]:
-        Ps = MicroPrecision().compute_all_groups(df, *args, macro=macro, **kwargs)
-        Rs = MicroRecall().compute_all_groups(df, *args, macro=macro, **kwargs)
+        Ps = self._precision.compute_all_groups(df, *args, macro=macro, **kwargs)
+        Rs = self._recall.compute_all_groups(df, *args, macro=macro, **kwargs)
         E = (1.0, 0)
 
         clss = []
@@ -235,8 +245,9 @@ class TheilU(Metric):
             return float("nan"), 0
         C = confusion_matrix(lab, pred, labels=classes).astype(float)
         N, CS, RS = [C.sum(a) for a in [None, 0, 1]]
+        N = int(N)
         if N <= 1:
-            float("nan"), N
+            return float("nan"), N
         eN = np.clip(shannon_entropy(RS), 0.0, np.inf)
         if eN <= 0.0:
             return float("nan"), N
@@ -275,8 +286,10 @@ class InformationTransfer(Metric):
 
     def compute(self, df: MetricDF | MetricData):
         tu, n = self._theil_u.compute(df)
-        cov = np.mean(df.prediction_made).item()
-        return (tu * cov, n)
+        pm = df.prediction_made
+        assert pm is not None
+        cov = np.mean(pm).item()
+        return tu * cov, n
 
 
 # Proportion of known labels
@@ -318,7 +331,7 @@ class AveragePredictionLevel(Metric):
 
 
 # Mean Confidence of Correct vs Incorrect Predictions
-class ConfidenceStats(Metric):
+class ConfidenceStats(Metric[dict[str, float]]):
     """Mean Confidence of Correct vs Incorrect Predictions."""
 
     name: str = "confidence_stats"
@@ -350,11 +363,11 @@ class OptimalConfidenceThreshold(Metric):
 
     def __init__(
         self,
-        crit: type[Metric] = MacroF1,
+        crit: type[Metric[float]] = MacroF1,
         use_quantiles: bool = True,
         breaks: int = 15,
         depth: int = 3,
-        eps: float = 1e-3,
+        eps: float = 1e-2,
         *args,
         **kwargs,
     ):
@@ -381,6 +394,10 @@ class OptimalConfidenceThreshold(Metric):
                 return float(np.quantile(confs, np.clip(u, 0.0, 1.0)))
             return float(u)
 
+        def close_enough(res: dict[float, float]):
+            tgt = self.target(res.values())
+            return [thr for thr, crt in res.items() if abs(tgt - crt) <= self.eps]
+
         def evaluate(u: float) -> float:
             u_key = round(float(u), 7)
             if u_key not in res:
@@ -397,7 +414,7 @@ class OptimalConfidenceThreshold(Metric):
                     "correct": correct,
                 }
                 fast_df = MetricDF(fast_dict, _validated=True)
-                res[u_key] = crit(fast_df, **kwargs)
+                res[u_key] = cast(float, crit(fast_df, **kwargs))
             return res[u_key]
 
         steps_per_tier = self.breaks // self.depth
@@ -414,8 +431,7 @@ class OptimalConfidenceThreshold(Metric):
                     evaluate(u)
                     pbar.update(1)
 
-                target_val = self.target(res.values())
-                best = [u for u, v in res.items() if abs(v - target_val) <= self.eps]
+                best = close_enough(res)
                 mi, ma = min(best), max(best)
 
                 if mi == smi and ma == sma:
@@ -426,11 +442,10 @@ class OptimalConfidenceThreshold(Metric):
                     break
                 smi, sma = nsmi, nsma
 
-        target_val = self.target(res.values())
-        best = [u for u, v in res.items() if abs(v - target_val) <= self.eps]
+        best = close_enough(res)
 
         if not best:
-            raise RuntimeError(f"No values close to {self.target}(values)={target_val}")
+            raise RuntimeError(f"No values close to target({self.target})?")
 
         best_mid = (min(best) + max(best)) / 2.0
         best_u = sorted(best, key=lambda v: abs(v - best_mid))[0]
@@ -446,8 +461,16 @@ class OptimalConfidenceThreshold(Metric):
         return best_tau, len(base_df_data)
 
 
+@overload
 def get_all_metrics(
-    pattern: str | re.Pattern | None = None, simple: bool | None = None, hierarchical: bool | None = None
+    pattern: str | re.Pattern | None = None, simple: Literal[True] = True, hierarchical: bool | None = None
+) -> OrderedDict[str, Metric[float]]: ...
+@overload
+def get_all_metrics(
+    pattern: str | re.Pattern | None = None, simple: Literal[False] = False, hierarchical: bool | None = None
+) -> OrderedDict[str, Metric[Any]]: ...
+def get_all_metrics(
+    pattern: str | re.Pattern | None = None, simple: bool | None = False, hierarchical: bool | None = None
 ):
     def metric_filter(name_obj: tuple[str, Metric]):
         name, obj = name_obj
@@ -458,7 +481,7 @@ def get_all_metrics(
             retval = retval and obj.is_simple
         return retval
 
-    metric_classes: list[type[Metric]] = [
+    metric_classes: list[type[Metric[Any]]] = [
         MacroAccuracy,
         MacroPrecision,
         MacroRecall,
@@ -515,7 +538,7 @@ def evaluate_all_metrics(
     if precalculated is None or per_class:
         precalculated = {}
 
-    metrics_instances = get_all_metrics(pattern=pattern, simple=simple, hierarchical=hierarchical)
+    metrics_instances = get_all_metrics(pattern=pattern, simple=bool(simple), hierarchical=hierarchical)
     simple_metrics = get_all_metrics(pattern=pattern, simple=True, hierarchical=hierarchical)
 
     with tqdm(
@@ -612,8 +635,8 @@ def evaluate_file(
     simple: bool | None = None,
     hierarchical: bool | None = None,
     use_quantiles: bool = True,
-    eps: float = 1e-3,
-    opt_crit: type[Metric] = MacroBalancedF1,
+    eps: float = 1e-2,
+    opt_crit: type[Metric[float]] = MacroBalancedF1,
     seed: int | None = None,
     verbose: int = 1,
 ) -> dict:
@@ -646,7 +669,7 @@ def evaluate_file(
         combinations_data = df.add_combinations(combinations)
 
     if optimal:
-        df, calib = df.split((0.9, 0.1), seed=seed)
+        df, calib = df.split((0.9, 0.1), strata=("label",), seed=seed)
         if verbose > 1:
             print(f"Computing optimal threshold on {len(calib)} samples, keeping {len(df)} for metrics.")
         opt_threshold = OptimalConfidenceThreshold(
@@ -657,7 +680,10 @@ def evaluate_file(
         if not per_class:
             precalculated["optimal_confidence_threshold"] = opt_threshold
         if isinstance(opt_threshold, dict):
-            threshold = [float(v) for _, v in sorted(opt_threshold.items(), key=lambda x: x[0])]
+            threshold = []
+            for _, v in sorted(opt_threshold.items(), key=lambda x: x[0]):
+                assert not isinstance(v, (tuple, dict))
+                threshold.append(float(v))
         elif isinstance(opt_threshold, (float, int)):
             threshold = float(opt_threshold)
 
