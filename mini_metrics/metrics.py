@@ -23,13 +23,18 @@ from mini_metrics.abstract import (
 )
 from mini_metrics.data import COLUMNS, OPTIONAL_COLUMNS, MetricData, MetricDF
 from mini_metrics.helpers import (
+    ThresholdCurve,
     apply_macro_weight,
+    compute_f1_threshold_curve,
+    compute_stable_threshold,
     df_from_dict,
     filter_df,
+    find_connected_component_bounds,
     format_table,
     pretty_string_dict,
     retry_with_kwargs,
     round_dict,
+    select_connected_plateau_index,
 )
 from mini_metrics.hierarchical import (
     MacroRankAccuracy,
@@ -154,6 +159,16 @@ class F1(AveragedMetric):
         super().__init__(*args, **kwargs)
         self._precision = MicroPrecision()
         self._recall = MicroRecall()
+
+    def compute_threshold_curve(
+        self,
+        df: MetricDF | MetricData,
+        macro: bool | None = None,
+    ) -> ThresholdCurve:
+        if self.balanced:
+            raise NotImplementedError("compute_threshold_curve is not supported for balanced F1.")
+        actual_macro = self.macro if macro is None else macro
+        return compute_f1_threshold_curve(df, macro=actual_macro)
 
     def compute_all_groups(
         self,
@@ -353,7 +368,7 @@ class ConfidenceStats(Metric[dict[str, float]]):
 # Optimal Confidence Threshold
 class OptimalConfidenceThreshold(Metric):
     name: str = "optimal_confidence_threshold"
-    crit: type[Metric]
+    crit: type[Metric[float]]
     target: Callable[[Iterable[float]], float] = max
     columns = (
         *(set(COLUMNS) - set(OPTIONAL_COLUMNS)),
@@ -382,10 +397,37 @@ class OptimalConfidenceThreshold(Metric):
         base_df_data = df.copy().data if isinstance(df, MetricDF) else df
         base_dict = base_df_data.to_dict()
         confs = np.asarray(base_dict["confidence"], dtype=np.float64)
+        n_samples = len(base_df_data)
 
-        crit = self.crit()
-        crit.is_per_level = False
+        if n_samples == 0:
+            return float("nan"), 0
 
+        crit_inst = self.crit() if isinstance(self.crit, type) else self.crit
+        crit_inst.is_per_level = False
+
+        # Check eligibility for fast threshold curve (NOTE: this should be properly abstracted)
+        is_fast_eligible = (
+            not getattr(crit_inst, "balanced", False)
+            and getattr(type(crit_inst), "compute_all_groups", None) is F1.compute_all_groups
+            and set(kwargs.keys()).issubset({"verbose", "macro"})
+        )
+
+        if is_fast_eligible:
+            macro_arg = kwargs.get("macro", getattr(crit_inst, "macro", True))
+            curve = compute_f1_threshold_curve(base_df_data, macro=macro_arg)
+            if len(curve.thresholds) > 0:
+                best_idx = select_connected_plateau_index(
+                    positions=curve.rejection_rates,
+                    values=curve.values,
+                    eps=self.eps,
+                    target_fn=self.target,
+                )
+                selected_boundary = curve.thresholds[best_idx]
+                accepted_mask = confs >= selected_boundary
+                best_tau = compute_stable_threshold(confs, accepted_mask)
+                return best_tau, n_samples
+
+        # Generic hierarchical search fallback
         res: dict[float, float] = {}
 
         def u_to_tau(u: float) -> float:
@@ -393,10 +435,6 @@ class OptimalConfidenceThreshold(Metric):
             if self.use_quantiles:
                 return float(np.quantile(confs, np.clip(u, 0.0, 1.0)))
             return float(u)
-
-        def close_enough(res: dict[float, float]):
-            tgt = self.target(res.values())
-            return [thr for thr, crt in res.items() if abs(tgt - crt) <= self.eps]
 
         def evaluate(u: float) -> float:
             u_key = round(float(u), 7)
@@ -414,7 +452,7 @@ class OptimalConfidenceThreshold(Metric):
                     "correct": correct,
                 }
                 fast_df = MetricDF(fast_dict, _validated=True)
-                res[u_key] = cast(float, crit(fast_df, **kwargs))
+                res[u_key] = cast(float, crit_inst(fast_df, **kwargs))
             return res[u_key]
 
         steps_per_tier = self.breaks // self.depth
@@ -431,8 +469,11 @@ class OptimalConfidenceThreshold(Metric):
                     evaluate(u)
                     pbar.update(1)
 
-                best = close_enough(res)
-                mi, ma = min(best), max(best)
+                eval_u = np.array(list(res.keys()), dtype=np.float64)
+                eval_vals = np.array(list(res.values()), dtype=np.float64)
+                mi, ma = find_connected_component_bounds(
+                    eval_u, eval_vals, eps=self.eps, target_fn=self.target
+                )
 
                 if mi == smi and ma == sma:
                     break
@@ -442,23 +483,28 @@ class OptimalConfidenceThreshold(Metric):
                     break
                 smi, sma = nsmi, nsma
 
-        best = close_enough(res)
+        eval_u = np.array(list(res.keys()), dtype=np.float64)
+        eval_vals = np.array(list(res.values()), dtype=np.float64)
+        mi, ma = find_connected_component_bounds(eval_u, eval_vals, eps=self.eps, target_fn=self.target)
+        u_center = round(float((mi + ma) / 2.0), 7)
+        if u_center not in res:
+            evaluate(u_center)
 
-        if not best:
-            raise RuntimeError(f"No values close to target({self.target})?")
+        # Recompute after evaluating generic midpoint
+        eval_u = np.array(list(res.keys()), dtype=np.float64)
+        eval_vals = np.array(list(res.values()), dtype=np.float64)
+        best_u_idx = select_connected_plateau_index(
+            positions=eval_u,
+            values=eval_vals,
+            eps=self.eps,
+            target_fn=self.target,
+        )
+        best_u = float(eval_u[best_u_idx])
+        raw_tau = u_to_tau(best_u)
+        accepted_mask = confs >= raw_tau
+        best_tau = compute_stable_threshold(confs, accepted_mask)
 
-        best_mid = (min(best) + max(best)) / 2.0
-        best_u = sorted(best, key=lambda v: abs(v - best_mid))[0]
-        best_tau = u_to_tau(best_u)
-
-        if len(best) > 1 and verbose > 1:
-            print(
-                f"Found {len(best)} optimal positions at u: ["
-                + ", ".join(f"{v:.3f}" for v in sorted(best))
-                + f"] -> tau: {best_tau:.3f}"
-            )
-
-        return best_tau, len(base_df_data)
+        return best_tau, n_samples
 
 
 @overload

@@ -1,6 +1,7 @@
 import os
 import re
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from itertools import cycle
 from typing import Any, Concatenate, Literal, SupportsFloat, TypeVar, overload
 
@@ -349,3 +350,303 @@ def apply_macro_weight(weight: SupportsFloat, macro: bool, eps: float = 1e-9) ->
     if abs(weight) < eps:
         return 0.0
     return 1.0
+
+
+# Threshold Optimization Helpers
+@dataclass(frozen=True, slots=True)
+class ThresholdCurve:
+    thresholds: np.ndarray
+    accepted_counts: np.ndarray
+    rejection_rates: np.ndarray
+    values: np.ndarray
+
+
+def compute_f1_threshold_curve(df: MetricDF | MetricData, macro: bool = True) -> ThresholdCurve:
+    """Computes exact decision-distinct Macro-F1 or Micro-F1 threshold curve in O(N log N + N + C)."""
+    df_data = df.data if isinstance(df, MetricDF) else df
+    confs = np.asarray(df_data.confidence, dtype=np.float64)
+    labels = np.asarray(df_data.label)
+    preds = np.asarray(df_data.prediction)
+    n_total = len(confs)
+    if n_total == 0:
+        return ThresholdCurve(
+            thresholds=np.empty(0, dtype=np.float64),
+            accepted_counts=np.empty(0, dtype=np.int64),
+            rejection_rates=np.empty(0, dtype=np.float64),
+            values=np.empty(0, dtype=np.float64),
+        )
+
+    unique_classes, inv = np.unique(np.concatenate([labels, preds]), return_inverse=True)
+    label_ids = inv[:n_total]
+    pred_ids = inv[n_total:]
+    num_classes = len(unique_classes)
+
+    true_support = np.bincount(label_ids, minlength=num_classes)
+    is_correct = label_ids == pred_ids
+
+    order = np.argsort(-confs, kind="mergesort")
+    sorted_confs = confs[order]
+    sorted_preds = pred_ids[order]
+    sorted_correct = is_correct[order]
+
+    diffs = np.flatnonzero(sorted_confs[:-1] != sorted_confs[1:])
+    group_ends = np.append(diffs + 1, n_total)
+    num_groups = len(group_ends)
+
+    out_thresholds = np.empty(num_groups, dtype=np.float64)
+    out_accepted_counts = np.empty(num_groups, dtype=np.int64)
+    out_values = np.empty(num_groups, dtype=np.float64)
+
+    pred_support = np.zeros(num_classes, dtype=np.int64)
+    tp = np.zeros(num_classes, dtype=np.int64)
+    f1_per_class = np.zeros(num_classes, dtype=np.float64)
+
+    active_mask = true_support > 0
+    num_active = int(np.sum(active_mask))
+    macro_f1_sum = 0.0
+
+    total_tp = 0
+    total_accepted = 0
+
+    start = 0
+    for g_idx, end in enumerate(group_ends):
+        c_val = sorted_confs[start]
+        for i in range(start, end):
+            p = sorted_preds[i]
+            corr = sorted_correct[i]
+
+            if macro:
+                old_f1 = f1_per_class[p]
+                was_active = (true_support[p] + pred_support[p]) > 0
+
+                pred_support[p] += 1
+                if corr:
+                    tp[p] += 1
+
+                new_f1 = (2.0 * tp[p]) / (true_support[p] + pred_support[p])
+                f1_per_class[p] = new_f1
+
+                if was_active:
+                    macro_f1_sum += new_f1 - old_f1
+                else:
+                    macro_f1_sum += new_f1
+                    num_active += 1
+            else:
+                total_accepted += 1
+                if corr:
+                    total_tp += 1
+
+        if macro:
+            val = (macro_f1_sum / num_active) if num_active > 0 else float("nan")
+        else:
+            denom = n_total + total_accepted
+            val = (2.0 * total_tp / denom) if denom > 0 else float("nan")
+
+        out_thresholds[g_idx] = c_val
+        out_accepted_counts[g_idx] = end
+        out_values[g_idx] = val
+        start = end
+
+    out_rejection_rates = 1.0 - (out_accepted_counts / n_total)
+    return ThresholdCurve(
+        thresholds=out_thresholds,
+        accepted_counts=out_accepted_counts,
+        rejection_rates=out_rejection_rates,
+        values=out_values,
+    )
+
+
+def select_connected_plateau_index(
+    positions: np.ndarray,
+    values: np.ndarray,
+    eps: float = 1e-2,
+    target_fn: Callable[[Iterable[float]], float] = max,
+) -> int:
+    """Selects the realizable index nearest the center of the best connected near-optimal component."""
+    if len(positions) == 0:
+        raise ValueError("Cannot select plateau from empty arrays.")
+    if len(positions) == 1:
+        return 0
+
+    sort_idx = np.argsort(positions)
+    sorted_pos = np.asarray(positions)[sort_idx]
+    sorted_vals = np.asarray(values)[sort_idx]
+
+    optimum = float(target_fn(sorted_vals))
+    eligible = np.abs(sorted_vals - optimum) <= (eps + 1e-12)
+
+    components: list[tuple[int, int]] = []
+    in_comp = False
+    start = 0
+    for i, el in enumerate(eligible):
+        if el:
+            if not in_comp:
+                start = i
+                in_comp = True
+        else:
+            if in_comp:
+                components.append((start, i - 1))
+                in_comp = False
+    if in_comp:
+        components.append((start, len(eligible) - 1))
+
+    if not components:
+        raise RuntimeError(f"No values close to target({target_fn}) within eps={eps}")
+
+    comp_opt_indices = []
+    for c_idx, (s, e) in enumerate(components):
+        comp_vals = sorted_vals[s : e + 1]
+        best_in_comp = float(target_fn(comp_vals))
+        if abs(best_in_comp - optimum) <= 1e-12:
+            comp_opt_indices.append(c_idx)
+
+    if not comp_opt_indices:
+        best_diff = min(abs(float(target_fn(sorted_vals[s : e + 1])) - optimum) for s, e in components)
+        comp_opt_indices = [
+            c_idx
+            for c_idx, (s, e) in enumerate(components)
+            if abs(float(target_fn(sorted_vals[s : e + 1])) - optimum) <= best_diff + 1e-12
+        ]
+
+    # Deterministic tie-break among optimal components:
+    # 1. Greatest width in position space: abs(pos[e] - pos[s])
+    # 2. Higher coverage (smaller position value)
+    best_c_idx = min(
+        comp_opt_indices,
+        key=lambda c_idx: (
+            -round(float(abs(sorted_pos[components[c_idx][1]] - sorted_pos[components[c_idx][0]])), 9),
+            round(float(min(sorted_pos[components[c_idx][0]], sorted_pos[components[c_idx][1]])), 9),
+            c_idx,
+        ),
+    )
+
+    best_s, best_e = components[best_c_idx]
+    pos_center = (sorted_pos[best_s] + sorted_pos[best_e]) / 2.0
+
+    cand_indices = np.arange(best_s, best_e + 1)
+    dists = np.abs(sorted_pos[cand_indices] - pos_center)
+    best_cand_rel_idx = min(
+        range(len(cand_indices)),
+        key=lambda idx: (
+            round(float(dists[idx]), 9),
+            round(float(sorted_pos[cand_indices[idx]]), 9),
+            sort_idx[cand_indices[idx]],
+        ),
+    )
+    selected_sorted_idx = cand_indices[best_cand_rel_idx]
+    return int(sort_idx[selected_sorted_idx])
+
+
+def find_connected_component_bounds(
+    positions: np.ndarray,
+    values: np.ndarray,
+    eps: float = 1e-2,
+    target_fn: Callable[[Iterable[float]], float] = max,
+) -> tuple[float, float]:
+    """Finds the min and max position bounds of the best connected near-optimal component."""
+    if len(positions) == 0:
+        return 0.0, 1.0
+    if len(positions) == 1:
+        val = float(positions[0])
+        return val, val
+
+    sort_idx = np.argsort(positions)
+    sorted_pos = np.asarray(positions)[sort_idx]
+    sorted_vals = np.asarray(values)[sort_idx]
+
+    optimum = float(target_fn(sorted_vals))
+    eligible = np.abs(sorted_vals - optimum) <= (eps + 1e-12)
+
+    components: list[tuple[int, int]] = []
+    in_comp = False
+    start = 0
+    for i, el in enumerate(eligible):
+        if el:
+            if not in_comp:
+                start = i
+                in_comp = True
+        else:
+            if in_comp:
+                components.append((start, i - 1))
+                in_comp = False
+    if in_comp:
+        components.append((start, len(eligible) - 1))
+
+    if not components:
+        return float(np.min(positions)), float(np.max(positions))
+
+    comp_opt_indices = []
+    for c_idx, (s, e) in enumerate(components):
+        comp_vals = sorted_vals[s : e + 1]
+        best_in_comp = float(target_fn(comp_vals))
+        if abs(best_in_comp - optimum) <= 1e-12:
+            comp_opt_indices.append(c_idx)
+
+    if not comp_opt_indices:
+        best_diff = min(abs(float(target_fn(sorted_vals[s : e + 1])) - optimum) for s, e in components)
+        comp_opt_indices = [
+            c_idx
+            for c_idx, (s, e) in enumerate(components)
+            if abs(float(target_fn(sorted_vals[s : e + 1])) - optimum) <= best_diff + 1e-12
+        ]
+
+    best_c_idx = min(
+        comp_opt_indices,
+        key=lambda c_idx: (
+            -round(float(abs(sorted_pos[components[c_idx][1]] - sorted_pos[components[c_idx][0]])), 9),
+            round(float(min(sorted_pos[components[c_idx][0]], sorted_pos[components[c_idx][1]])), 9),
+            c_idx,
+        ),
+    )
+
+    best_s, best_e = components[best_c_idx]
+    return float(min(sorted_pos[best_s], sorted_pos[best_e])), float(max(sorted_pos[best_s], sorted_pos[best_e]))
+
+
+def compute_stable_threshold(
+    confs: np.ndarray,
+    accepted_mask: np.ndarray,
+) -> float:
+    """Places the threshold in the decision-equivalent interval (largest rejected, smallest accepted]."""
+    confs = np.asarray(confs, dtype=np.float64)
+    accepted_mask = np.asarray(accepted_mask, dtype=bool)
+    if len(confs) == 0:
+        return 1.0
+
+    accepted_confs = confs[accepted_mask]
+    rejected_confs = confs[~accepted_mask]
+
+    if len(rejected_confs) == 0:
+        # All observations accepted: preserve observed minimum confidence
+        c_acc_min = float(np.min(accepted_confs))
+        threshold = c_acc_min
+    elif len(accepted_confs) == 0:
+        # No observations accepted
+        c_rej_max = float(np.max(rejected_confs))
+        if c_rej_max < 1.0:
+            threshold = 1.0
+        else:
+            threshold = float(np.nextafter(c_rej_max, np.inf))
+    else:
+        c_acc_min = float(np.min(accepted_confs))
+        c_rej_max = float(np.max(rejected_confs))
+        if c_rej_max >= c_acc_min:
+            raise ValueError(
+                f"Invalid decision partition: max rejected ({c_rej_max}) >= min accepted ({c_acc_min}). "
+                "Confidence ties must be accepted or rejected together."
+            )
+        mid = (c_rej_max + c_acc_min) / 2.0
+        if c_rej_max < mid <= c_acc_min:
+            threshold = float(mid)
+        else:
+            # Arithmetic midpoint collapsed due to adjacent floating point precision
+            threshold = c_acc_min
+
+    # Verify reconstruction
+    reconstructed_mask = confs >= threshold
+    if not np.array_equal(reconstructed_mask, accepted_mask):
+        raise RuntimeError(
+            f"Failed to reproduce accepted set with threshold {threshold}: "
+            f"expected {int(np.sum(accepted_mask))} accepted, got {int(np.sum(reconstructed_mask))}."
+        )
+    return float(threshold)
