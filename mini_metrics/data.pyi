@@ -1,7 +1,7 @@
-# metricdf.pyi
-from collections.abc import Sequence
+# data.pyi
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import IO, Any, Self, override
+from typing import IO, Any, Self
 
 import numpy as np
 import pandas as pd
@@ -10,100 +10,126 @@ from numpy.typing import NDArray
 SCHEMA: tuple[tuple[str, type[float] | type[int] | type[str] | type[bool]], ...]
 COLUMNS: tuple[str, ...]
 OPTIONAL_COLUMNS: tuple[str, ...]
+REQUIRED_SCHEMA: tuple[tuple[str, type[float] | type[int] | type[str] | type[bool]], ...]
 
 type NDStr = NDArray[np.str_] | NDArray[np.object_]
 type NDInt = NDArray[np.int64]
 type NDFloat = NDArray[np.float64]
 type NDBool = NDArray[np.bool_]
 
-class MetricData:
-    """A pure-NumPy view of MetricDF for high-performance iteration and slicing."""
+def first_nonzero_ordered(mask: np.ndarray, arr: np.ndarray) -> int: ...
+def group_arr(arr: np.ndarray) -> list[tuple[Any, np.ndarray]]: ...
+def group_indices(arr: np.ndarray | Sequence[Any]) -> dict[Any, np.ndarray]: ...
 
-    instance_id: NDInt | None
-    filename: NDStr | None
-    level: NDInt | None
-    label: NDStr | None
-    prediction: NDStr | None
-    confidence: NDFloat | None
-    threshold: NDFloat | None
-    known_label: NDBool | None
-    prediction_level: NDInt | None
-    prediction_made: NDBool | None
-    correct: NDInt | None
+class Column(np.ndarray):
+    def __new__(cls, input_array: Any, dtype: Any = ...) -> Column: ...
+    def unique(self) -> Column: ...
+    def to_numpy(self) -> np.ndarray: ...
+
+class MetricDF:
+    """A pure-NumPy Structure-of-Arrays container for high-performance iteration and slicing.
+
+    This class defines and validates the `mini_metrics` result schema.
+
+    Required columns:
+    ```
+    instance_id : int
+    filename    : str
+    level       : int # (0, 1, ..., n)
+    label       : str
+    prediction  : str
+    confidence  : float # [0, 1]
+    threshold   : float # [0, 1]
+    ```
+
+    *Note: Threshold might be optional in the future
+    under an assumption that the threshold is 0.*
+
+    Optional columns:
+    ```
+    known_label     : bool
+    prediction_level: int # (-1, 0, 1, ..., n)
+    prediction_made : bool
+    correct         : int # (-1, 0, 1)
+    ```
+
+    Any missing optional columns will be inferred from the required columns.
+    """
+
+    _schema: tuple[tuple[str, type[float] | type[int] | type[str] | type[bool]], ...]
+
+    instance_id: Column
+    filename: Column
+    level: Column
+    label: Column
+    prediction: Column
+    confidence: Column
+    threshold: Column
+    known_label: Column
+    prediction_level: Column
+    prediction_made: Column
+    correct: Column
+    _class_combinations: dict[str, tuple[str, ...]]
+    _level_labels: list[str]
 
     def __init__(
         self,
-        *,  # Enforces keyword-only arguments matching kw_only=True
-        instance_id: NDInt | None = ...,
-        filename: NDStr | None = ...,
-        level: NDInt | None = ...,
-        label: NDStr | None = ...,
-        prediction: NDStr | None = ...,
-        confidence: NDFloat | None = ...,
-        threshold: NDFloat | None = ...,
-        known_label: NDBool | None = ...,
-        prediction_level: NDInt | None = ...,
-        prediction_made: NDBool | None = ...,
-        correct: NDInt | None = ...,
+        data: pd.DataFrame | Mapping[str, Any] | MetricDF | Any | None = ...,
+        *,
+        coerce: bool = ...,
+        strict: bool = ...,
+        _class_combinations: dict[str, tuple[str, ...]] | None = ...,
+        _level_labels: list[str] | None = ...,
+        **kwargs: Any,
     ) -> None: ...
     def __len__(self) -> int: ...
+    @property
+    def empty(self) -> bool: ...
+    @property
+    def shape(self) -> tuple[int, int]: ...
+    @property
+    def columns(self) -> tuple[str, ...]: ...
+    @property
+    def data(self) -> Self: ...
+    def __contains__(self, item: str) -> bool: ...
+    def __getitem__(self, item: int | slice | np.ndarray | Sequence[int] | str) -> Any: ...
+    def __setitem__(self, key: str, value: Any) -> None: ...
     def slice(self, start: int, end: int) -> Self: ...
-    def take(self, indices: NDArray[np.integer[Any]] | NDBool) -> Self: ...
-    def to_dict(self) -> dict[str, NDArray]: ...
-
-class MetricDF(pd.DataFrame):
-    @property
-    def data(self) -> MetricData: ...
-    @property
-    @override
-    def _constructor(self) -> type[Self]: ...
-    @override
-    def __finalize__(self, other: object = ..., method: str | None = ...) -> Self: ...
-    def __init__(
+    def take(self, indices: NDArray[np.integer[Any]] | Sequence[int] | NDBool) -> Self: ...
+    def with_threshold(
         self,
-        data: pd.DataFrame | dict | MetricDF | Any | None = None,
+        threshold: float | Mapping[int, float] | Sequence[float] | np.ndarray,
         *,
-        coerce: bool = True,
-        strict: bool = True,
-        **kwargs: Any,
-    ) -> None: ...
-    def __new__(
-        cls: type[MetricDF],
-        data: pd.DataFrame | dict | MetricDF | Any | None = None,
-        *,
-        coerce: bool = True,
-        strict: bool = True,
-        **kwargs: Any,
-    ) -> MetricDF: ...
-    @classmethod
-    def from_source(cls, src: str | Path | IO[bytes]) -> MetricDF: ...
-    def add_combinations(self, src: str | Path | list[tuple[str, ...]]) -> dict[str, tuple[str, ...]]: ...
+        recompute_prediction_level: bool = True,
+    ) -> Self: ...
+    def to_dict(self, *args: Any, **kwargs: Any) -> dict[str, Any]: ...
+    def to_pandas(self) -> pd.DataFrame: ...
+    def to_csv(self, *args: Any, **kwargs: Any) -> Any: ...
+    def copy(self) -> Self: ...
+    def drop(self, *args: Any, **kwargs: Any) -> Self: ...
+    def reset_index(self, *args: Any, **kwargs: Any) -> Self: ...
+    def reindex(self, *args: Any, **kwargs: Any) -> Self: ...
+    def invalid_schema(self, msg: str) -> None: ...
+    def validate(self, coerce: bool = True, strict: bool = True) -> None: ...
+    def metadata(self) -> dict[str, Any]: ...
     def split(
         self,
         proportions: Sequence[float],
         strata: Sequence[str] | None = ("label",),
         seed: int | None = None,
         shuffle: bool = True,
-    ) -> list[MetricDF]: ...
-    @property
-    def instance_id(self) -> pd.Series[int]: ...
-    @property
-    def filename(self) -> pd.Series[str]: ...
-    @property
-    def level(self) -> pd.Series[int]: ...
-    @property
-    def label(self) -> pd.Series[str]: ...
-    @property
-    def prediction(self) -> pd.Series[str]: ...
-    @property
-    def confidence(self) -> pd.Series[float]: ...
-    @property
-    def threshold(self) -> pd.Series[float]: ...
-    @property
-    def prediction_made(self) -> pd.Series[bool]: ...
-    @property
-    def known_label(self) -> pd.Series[bool]: ...
-    @property
-    def correct(self) -> pd.Series[int]: ...
-    @property
-    def prediction_level(self) -> pd.Series[int]: ...
+    ) -> list[Self]: ...
+    def add_combinations(self, src: str | Path | list[tuple[str, ...]]) -> dict[str, tuple[str, ...]]: ...
+    @classmethod
+    def from_dict(cls, data: dict[str, Any], coerce: bool = True, strict: bool = True) -> Self: ...
+    @classmethod
+    def from_pandas(cls, df: pd.DataFrame, coerce: bool = True, strict: bool = True) -> Self: ...
+    @classmethod
+    def from_source(cls, src: str | Path | IO[bytes]) -> Self: ...
+    @classmethod
+    def empty_instance(cls) -> Self: ...
+
+class MetricData(MetricDF):
+    """Deprecated: `MetricData` has been superseded by `MetricDF`. Use `MetricDF` directly."""
+
+    ...

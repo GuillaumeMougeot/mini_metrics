@@ -21,7 +21,7 @@ from mini_metrics.abstract import (
     Metric,
     MicroMetric,
 )
-from mini_metrics.data import COLUMNS, OPTIONAL_COLUMNS, MetricData, MetricDF
+from mini_metrics.data import COLUMNS, OPTIONAL_COLUMNS, MetricDF
 from mini_metrics.helpers import (
     ThresholdCurve,
     apply_macro_weight,
@@ -57,7 +57,7 @@ class Accuracy(AveragedMetric):
     name = "accuracy"
     columns = ("correct", "prediction_made")
 
-    def compute(self, df: MetricDF | MetricData, remove_abstain: bool = True):
+    def compute(self, df: MetricDF, remove_abstain: bool = True):
         corr = df.correct
         assert corr is not None
         if remove_abstain:
@@ -87,7 +87,7 @@ class Precision(AveragedMetric):
         super().__init__()
         self._accuracy = Accuracy()
 
-    def compute(self, df: MetricDF | MetricData) -> tuple[float, int]:
+    def compute(self, df: MetricDF) -> tuple[float, int]:
         return self._accuracy.compute(df)
 
 
@@ -109,7 +109,7 @@ class Recall(AveragedMetric):
         super().__init__()
         self._accuracy = Accuracy()
 
-    def compute(self, df: MetricDF | MetricData) -> tuple[float, int]:
+    def compute(self, df: MetricDF) -> tuple[float, int]:
         return self._accuracy.compute(df, remove_abstain=False)
 
 
@@ -162,7 +162,7 @@ class F1(AveragedMetric):
 
     def compute_threshold_curve(
         self,
-        df: MetricDF | MetricData,
+        df: MetricDF,
         macro: bool | None = None,
     ) -> ThresholdCurve:
         if self.balanced:
@@ -249,7 +249,7 @@ class TheilU(Metric):
         "prediction_made",
     )
 
-    def compute(self, df: MetricDF | MetricData):
+    def compute(self, df: MetricDF):
         lab, pred, pm = df.label, df.prediction, df.prediction_made
         assert lab is not None
         assert pred is not None
@@ -277,7 +277,7 @@ class Coverage(AveragedMetric):
     name: str = "coverage"
     columns = ("prediction_made",)
 
-    def compute(self, df: MetricDF | MetricData):
+    def compute(self, df: MetricDF):
         pm = df.prediction_made
         assert pm is not None
         return np.mean(pm), len(pm)
@@ -299,7 +299,7 @@ class InformationTransfer(Metric):
         super().__init__()
         self._theil_u = TheilU()
 
-    def compute(self, df: MetricDF | MetricData):
+    def compute(self, df: MetricDF):
         tu, n = self._theil_u.compute(df)
         pm = df.prediction_made
         assert pm is not None
@@ -315,7 +315,7 @@ class VocabularyCoverage(AveragedMetric):
     columns = ("known_label",)
     should_filter = False
 
-    def compute(self, df: MetricDF | MetricData):
+    def compute(self, df: MetricDF):
         kn = df.known_label
         assert kn is not None
         return np.mean(kn), len(kn)
@@ -333,7 +333,7 @@ class AveragePredictionLevel(Metric):
     columns = ("prediction_level", "prediction_made")
     is_per_level = False
 
-    def compute(self, df: MetricDF | MetricData):
+    def compute(self, df: MetricDF):
         pl = df.prediction_level
         pm = df.prediction_made
         assert pl is not None
@@ -353,7 +353,7 @@ class ConfidenceStats(Metric[dict[str, float]]):
     columns = ("correct", "confidence")
     should_cast_float = False
 
-    def compute(self, df: MetricDF | MetricData):
+    def compute(self, df: MetricDF):
         outcomes = {"incorrect": -1, "abstain": 0, "correct": 1}
         correct = df.correct
         assert correct is not None
@@ -393,7 +393,7 @@ class OptimalConfidenceThreshold(Metric):
         self.eps = eps
         super().__init__(*args, **kwargs)
 
-    def compute(self, df: MetricDF | MetricData, verbose: int = 1, **kwargs) -> tuple[float, int]:
+    def compute(self, df: MetricDF, verbose: int = 1, **kwargs) -> tuple[float, int]:
         base_df_data = df.copy().data if isinstance(df, MetricDF) else df
         base_dict = base_df_data.to_dict()
         confs = np.asarray(base_dict["confidence"], dtype=np.float64)
@@ -440,19 +440,8 @@ class OptimalConfidenceThreshold(Metric):
             u_key = round(float(u), 7)
             if u_key not in res:
                 t = u_to_tau(u_key)
-                tarr = np.full(len(base_df_data), t, dtype=np.float64)
-                pred_made = base_dict["confidence"] >= tarr
-                correct = pred_made * ((base_dict["prediction"] == base_dict["label"]) * 2 - 1)
-                fast_dict = {
-                    **base_dict,
-                    "prediction": base_dict["prediction"],
-                    "label": base_dict["label"],
-                    "threshold": tarr,
-                    "prediction_made": pred_made,
-                    "correct": correct,
-                }
-                fast_df = MetricDF(fast_dict, _validated=True)
-                res[u_key] = cast(float, crit_inst(fast_df, **kwargs))
+                fast_data = base_df_data.with_threshold(t, recompute_prediction_level=False)
+                res[u_key] = cast(float, crit_inst(fast_data, **kwargs))
             return res[u_key]
 
         steps_per_tier = self.breaks // self.depth
@@ -698,8 +687,6 @@ def evaluate_file(
 
     if isinstance(source, MetricDF):
         df = source
-    elif isinstance(source, MetricData):
-        df = MetricDF(source)
     else:
         df = MetricDF.from_source(source)
 
@@ -746,13 +733,7 @@ def evaluate_file(
                 f"Number of supplied thresholds {len(thresholds)} must "
                 f"equal number of levels in metric source {len(lvls)}"
             )
-        for lvl, thr in zip(lvls, thresholds):
-            mask = df.level == lvl
-            df.loc[mask, "threshold"] = thr
-        df = MetricDF(
-            df.drop(["prediction_level", "prediction_made", "correct"], axis=1),
-            strict=False,
-        )
+        df = df.with_threshold(thresholds)
 
     # 3. Metric Evaluation
     metrics = evaluate_all_metrics(

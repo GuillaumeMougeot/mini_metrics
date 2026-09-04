@@ -2,9 +2,8 @@ from itertools import chain, repeat
 from typing import Any, Literal, cast, overload
 
 import numpy as np
-import pandas as pd
 
-from mini_metrics.data import COLUMNS, MetricData, MetricDF
+from mini_metrics.data import COLUMNS, MetricDF, group_indices
 from mini_metrics.helpers import apply_macro_weight, group_map
 from mini_metrics.simple import mean, to_float
 
@@ -36,7 +35,7 @@ class Metric[V]:
     def __name__(self) -> str:
         return self.name
 
-    def compute(self, df: MetricDF | MetricData, *args, **kwargs) -> tuple[V, Number]:
+    def compute(self, df: MetricDF, *args, **kwargs) -> tuple[V, Number]:
         """Core metric calculation logic.
 
         Concrete classes override this to implement calculation on a single slice.
@@ -51,7 +50,7 @@ class Metric[V]:
             df = df.drop(columns=[c for c in COLUMNS if c not in self.columns])
 
         if self.is_per_level:
-            return {lvl: df[df.level == lvl] for lvl in sorted(df.level.unique().tolist())}
+            return {int(lvl): df[df.level == lvl] for lvl in sorted(np.unique(df.level).tolist())}
 
         return {None: df}
 
@@ -128,13 +127,16 @@ class AveragedMetric(Metric[float]):
         should override this method. It must return a dictionary mapping
         each group/class to a tuple of (metric_value, weight).
         """
-        grps = list(pd.concat(getattr(df, k) for k in set((self.group, self.by))).unique())
+        grps = list(
+            dict.fromkeys(np.concatenate([np.asarray(getattr(df, k)) for k in set((self.group, self.by))]))
+        )
         if len(grps) <= 1:
             v, w = self.compute(df, *args, **kwargs)
             w = apply_macro_weight(w, macro)
             return {grps[0] if grps else None: (float(v), w)}
 
-        idxs = df.groupby(self.by, sort=False, observed=True).indices
+        idxs = group_indices(getattr(df, self.by))
+
         empty = np.empty((0,), dtype=np.int64)
 
         values = group_map(

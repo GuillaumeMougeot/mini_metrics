@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 
-from mini_metrics.data import MetricData, MetricDF
+from mini_metrics.data import MetricDF, group_indices
 from mini_metrics.simple import cumsum, group_segments
 
 R = TypeVar("R")
@@ -253,9 +253,9 @@ def df_from_dict(
 
 # General
 def group_map[R](
-    df: MetricDF | MetricData,
+    df: MetricDF,
     group_idx: Iterable[np.ndarray | pd.Index | list[int] | None],
-    func: Callable[Concatenate[MetricData, ...], R],
+    func: Callable[Concatenate[MetricDF, ...], R],
     *args,
     verbose: int = 1,
     **kwargs,
@@ -315,22 +315,20 @@ def filter_df(df: MetricDF, filter: str | list[str], verbose: int = 1):
             filter = [filter]
 
     def _match(_df: MetricDF):
-        def _inner(__df: MetricData):
+        def _inner(__df: MetricDF):
             assert __df.level is not None
             lvl_mask = __df.level == 0
             label = __df.label and __df.label[lvl_mask]
             return False if len(__df) == 0 or label is None else label.item() in filter
 
-        idx = _df.groupby("instance_id", sort=False, observed=True).indices
-        idx = [
-            np.asarray(idx.get(grp, np.empty((0,), dtype=np.int64)), dtype=np.int64)
-            for grp in df.instance_id.unique()
-        ]
+        idx_map = group_indices(_df.instance_id)
+        empty = np.empty((0,), dtype=np.int64)
+        idx = [idx_map.get(grp, empty) for grp in dict.fromkeys(_df.instance_id)]
         out = []
         for i, v in zip(idx, group_map(_df, idx, _inner, verbose=verbose)):
             if v:
                 out.append(i)
-        return np.concatenate(out)
+        return np.concatenate(out) if out else np.empty(0, dtype=np.int64)
 
     df = df.take(_match(df))
     return df
@@ -361,7 +359,7 @@ class ThresholdCurve:
     values: np.ndarray
 
 
-def compute_f1_threshold_curve(df: MetricDF | MetricData, macro: bool = True) -> ThresholdCurve:
+def compute_f1_threshold_curve(df: MetricDF, macro: bool = True) -> ThresholdCurve:
     """Computes exact decision-distinct Macro-F1 or Micro-F1 threshold curve in O(N log N + N + C)."""
     df_data = df.data if isinstance(df, MetricDF) else df
     confs = np.asarray(df_data.confidence, dtype=np.float64)
@@ -600,7 +598,9 @@ def find_connected_component_bounds(
     )
 
     best_s, best_e = components[best_c_idx]
-    return float(min(sorted_pos[best_s], sorted_pos[best_e])), float(max(sorted_pos[best_s], sorted_pos[best_e]))
+    return float(min(sorted_pos[best_s], sorted_pos[best_e])), float(
+        max(sorted_pos[best_s], sorted_pos[best_e])
+    )
 
 
 def compute_stable_threshold(

@@ -3,7 +3,7 @@ from itertools import chain
 from typing import cast
 
 from mini_metrics.abstract import AveragedMetric, MacroMetric, Metric, MicroMetric
-from mini_metrics.data import MetricData, MetricDF
+from mini_metrics.data import MetricDF
 from mini_metrics.helpers import apply_macro_weight
 from mini_metrics.simple import isfinite, mean
 
@@ -72,7 +72,7 @@ class RankAccuracy(AveragedMetric):
 
     def compute(
         self,
-        df: MetricDF | MetricData,
+        df: MetricDF,
         combinations: dict[str, tuple[str, ...]] | None = None,
         remove_abstain: bool = True,
     ):
@@ -104,7 +104,7 @@ class RankPrecision(AveragedMetric):
     name: str = "rank_precision"
     by: str = "prediction"
 
-    def compute(self, df: MetricDF | MetricData, *args, **kwargs):
+    def compute(self, df: MetricDF, *args, **kwargs):
         return cast(float, RankAccuracy().compute(df, *args, **kwargs))
 
 
@@ -122,7 +122,7 @@ class RankRecall(AveragedMetric):
 
     name: str = "rank_recall"
 
-    def compute(self, df: MetricDF | MetricData, *args, **kwargs):
+    def compute(self, df: MetricDF, *args, **kwargs):
         return cast(float, RankAccuracy().compute(df, remove_abstain=False, *args, **kwargs))
 
 
