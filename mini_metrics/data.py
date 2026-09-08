@@ -92,11 +92,10 @@ def _coerce_col(val: Any, tp: type, col_name: str, coerce: bool) -> Column:
     if arr.size == 0:
         return _EMPTY_COLS[tp]
     if tp is str:
-        if arr.dtype != object or (len(arr) > 0 and not isinstance(arr.ravel()[0], str)):
-            if not coerce and arr.dtype != object:
-                raise RuntimeError(
-                    f"Invalid data schema:\nFound column: {col_name} with invalid dtype {arr.dtype}, expected str"
-                )
+        all_strings = all(isinstance(x, str) for x in arr.ravel())
+        if not all_strings:
+            if not coerce:
+                raise RuntimeError(f"Invalid data schema:\nColumn {col_name} must contain only strings")
             arr = np.fromiter((str(x) for x in arr.ravel()), dtype=object, count=arr.size).reshape(arr.shape)
         else:
             arr = arr.astype(object)
@@ -118,23 +117,15 @@ def _compute_prediction_level(
     n = len(level)
     if n == 0:
         return np.empty(0, dtype=np.int64).view(Column)
-    levels = np.unique(level)
-    if len(levels) > 1:
-        n_levels = len(levels)
-        if n % n_levels == 0 and np.all(level[:n_levels] == np.arange(n_levels)):
-            n_inst = n // n_levels
-            passed = (confidence >= threshold).reshape(n_inst, n_levels)
-            any_passed = np.any(passed, axis=1)
-            first_lvl = np.where(any_passed, np.argmax(passed, axis=1), -1)
-            return np.repeat(first_lvl, n_levels).view(Column)
-
-        pred_lvl = -np.ones(n, dtype=int)
-        for _, gidx in group_arr(np.asarray(instance_id)):
-            pred_lvl[gidx] = first_nonzero_ordered(confidence[gidx] >= threshold[gidx], level[gidx])
-        return pred_lvl.view(Column)
-    elif len(levels) == 1:
-        return np.where(confidence >= threshold, int(levels[0]), -1).astype(int).view(Column)
-    return -np.ones(n, dtype=int).view(Column)
+    # Rows need not be contiguous, complete, or ordered by level within an instance.
+    ids, inverse = np.unique(instance_id, return_inverse=True)
+    accepted = confidence >= threshold
+    minimum = np.full(len(ids), np.iinfo(np.int64).max, dtype=np.int64)
+    np.minimum.at(minimum, inverse[accepted], level[accepted])
+    result = np.full(len(ids), -1, dtype=np.int64)
+    accepted_groups = inverse[accepted]
+    result[accepted_groups] = minimum[accepted_groups]
+    return result[inverse].view(Column)
 
 
 class COLUMNS_DEFAULT:
@@ -317,7 +308,7 @@ class MetricDF:
         if isinstance(item, str):
             return getattr(self, item)
         if isinstance(item, slice):
-            return self.slice(item.start or 0, item.stop if item.stop is not None else len(self))
+            return self.slice(item.start, item.stop, item.step)
         if isinstance(item, (np.ndarray, Sequence)) and not isinstance(item, (str, bytes)):
             arr = np.asarray(item)
             if arr.dtype == np.bool_:
@@ -333,29 +324,25 @@ class MetricDF:
         else:
             raise KeyError(f"'{key}' is not a valid field of {type(self).__name__}")
 
-    def slice(self, start: int, end: int) -> Self:
-        """Zero-copy slice of all underlying arrays."""
-        return type(self)(
-            **{col: getattr(self, col)[start:end] for col in self.columns},
-            _class_combinations=self._class_combinations,
-            _level_labels=self._level_labels,
-        )
+    def _select_rows(self, index: slice | np.ndarray) -> Self:
+        """Select existing columns without revalidating already-normalized values."""
+        result = object.__new__(type(self))
+        for col in self.columns:
+            setattr(result, col, getattr(self, col)[index])
+        result._class_combinations = dict(self._class_combinations)
+        result._level_labels = list(self._level_labels)
+        return result
+
+    def slice(self, start: int | None, end: int | None, step: int | None = None) -> Self:
+        """Slice every column with standard Python start/stop/step semantics."""
+        return self._select_rows(slice(start, end, step))
 
     def take(self, indices: np.ndarray | Sequence[int]) -> Self:
         """Advanced indexing across all arrays."""
-        idx = np.asarray(indices, dtype=np.int64)
-        return type(self)(
-            **{col: getattr(self, col)[idx] for col in self.columns},
-            _class_combinations=self._class_combinations,
-            _level_labels=self._level_labels,
-        )
+        return self._select_rows(np.asarray(indices, dtype=np.int64))
 
     def copy(self) -> Self:
-        return type(self)(
-            **{col: getattr(self, col).copy() for col in self.columns},
-            _class_combinations=dict(self._class_combinations),
-            _level_labels=list(self._level_labels),
-        )
+        return self.take(np.arange(len(self)))
 
     def with_threshold(
         self,
@@ -399,16 +386,12 @@ class MetricDF:
             else self.prediction_level
         )
 
-        cols = {col: getattr(self, col) for col in self.columns}
-        cols.update(
-            threshold=new_thr_col,
-            prediction_made=pred_made,
-            correct=correct,
-            prediction_level=pred_lvl,
-        )
-        return type(self)(
-            **cols, _class_combinations=self._class_combinations, _level_labels=self._level_labels
-        )
+        result = self._select_rows(slice(None))
+        result.threshold = new_thr_col
+        result.prediction_made = pred_made
+        result.correct = correct
+        result.prediction_level = pred_lvl
+        return result
 
     def to_dict(self, *args, **kwargs) -> dict[str, Any]:
         if not args and not kwargs:
@@ -425,8 +408,27 @@ class MetricDF:
     def to_csv(self, *args, **kwargs):
         return self.to_pandas().to_csv(*args, **kwargs)
 
-    def drop(self, *args, **kwargs) -> Self:
-        return self
+    def drop(self, labels=None, axis=0, *, index=None, columns=None, inplace=False, errors="raise") -> Self:
+        """Drop current zero-based row positions, preserving the fixed column schema.
+
+        Unlike a pandas frame this container has no persistent index labels.
+        Column deletion and in-place deletion are explicitly unsupported.
+        """
+        if columns is not None or axis in (1, "columns"):
+            raise NotImplementedError("MetricDF has a fixed schema; column deletion is unsupported")
+        if inplace:
+            raise NotImplementedError("Use the returned MetricDF; in-place deletion is unsupported")
+        if axis not in (0, "index"):
+            raise ValueError(f"Invalid axis: {axis}")
+        if errors not in ("raise", "ignore"):
+            raise ValueError("errors must be 'raise' or 'ignore'")
+        if labels is not None and index is not None:
+            raise ValueError("Specify either labels or index, not both")
+        positions = labels if index is None else index
+        if positions is None:
+            raise ValueError("Specify row positions through labels or index")
+        remaining = pd.RangeIndex(len(self)).drop(positions, errors=errors)
+        return self.take(remaining.to_numpy())
 
     def reset_index(self, *args, **kwargs) -> Self:
         return self

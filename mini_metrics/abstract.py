@@ -46,9 +46,6 @@ class Metric[V]:
         if self.should_filter and filter:
             df = df[df.known_label]
 
-        if set(self.columns) != set(COLUMNS):
-            df = df.drop(columns=[c for c in COLUMNS if c not in self.columns])
-
         if self.is_per_level:
             return {int(lvl): df[df.level == lvl] for lvl in sorted(np.unique(df.level).tolist())}
 
