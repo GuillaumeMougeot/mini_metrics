@@ -7,8 +7,8 @@ and local evidence; CI does not depend on its large inputs or saved notebooks.
 
 | Location | Purpose | Git policy |
 |---|---|---|
-| `experiments/thresholds/` | Simulation, Monte Carlo, curve plotting, diagnostic studies | Python source and notes visible to Git |
-| `experiments/threshold_stability/` | Fixed-grid policy comparisons, inspection, eight study logic tests | Python source and notes visible to Git |
+| `experiments/thresholds/` | Frozen threshold-curve visualization | Python source and notes visible to Git |
+| `experiments/threshold_stability/` | Frozen paired policy study, follow-ups and nine study logic tests | Python source and notes visible to Git |
 | `notebooks/` | Existing interactive analyses, with saved outputs retained | Local, ignored |
 | `raw/` | Original model outputs; paths preserved | Local, ignored |
 | `reference/` | PlantNet and Lepidoptera hierarchy combinations | Local, ignored |
@@ -19,8 +19,13 @@ and local evidence; CI does not depend on its large inputs or saved notebooks.
 | `scratch/` | Unclassified `temp.ipynb`; not treated as an authoritative experiment | Local, ignored |
 | `cleanup-manifest.json` | Original paths, new paths, sizes, checksums | Visible to Git |
 
+All retained experiment source is frozen for reference and replay; see the
+[freeze record](experiments/FREEZE.md). Continue regression and efficiency work
+in `tests/` and `benchmarks/`.
+
 ## Starting points
 
+- [Experiment review: keep, freeze and retire](experiments/README.md)
 - [Continuous checks and monitoring](../benchmarks/README.md)
 - [Threshold findings](../benchmarks/threshold_findings.md)
 - [Policy-comparison protocol](experiments/threshold_stability/README.md)
@@ -33,7 +38,6 @@ Check relocated experiment imports and plumbing:
 uv run --no-sync python -m unittest dev.experiments.threshold_stability.test_study_logic -v
 uv run --no-sync python -m dev.experiments.threshold_stability.compare_thresholds --help
 uv run --no-sync python -m dev.experiments.thresholds.threshold_curves --help
-uv run --no-sync python -m dev.experiments.thresholds.threshold_diagnostic_study --help
 ```
 
 Small end-to-end policy study (choose a new output directory for every run):
@@ -44,7 +48,7 @@ uv run --no-sync python -m dev.experiments.threshold_stability.compare_threshold
   --budgets 6 --eps .01 --output dev/results/threshold_stability/smoke-new
 ```
 
-Python namespaces now start with `dev.experiments.thresholds` or
+Retained Python namespaces start with `dev.experiments.thresholds` or
 `dev.experiments.threshold_stability`. Notebooks find the repository root from
 any directory inside the checkout. Their saved outputs were preserved, not rerun;
 legacy notebook cells may still need API updates before a full execution.
@@ -58,6 +62,8 @@ was removed. It reorganized 35 paths and inventoried 345 files containing
 2,936,427,298 bytes. It is an organizational cleanup, not a disk-space reduction.
 
 `cleanup-manifest.json` maps every original non-cache file to its new location.
+Subsequent retirements are mapped in [the experiment review](experiments/README.md);
+that table records the five retired files subsequently deleted on request.
 The `sha256`/`bytes` fields describe the original payload; edited source files also
 have `current_sha256`/`current_bytes`. Before import/path updates, source, shell,
 Markdown and notebook originals were saved under their old relative names in
