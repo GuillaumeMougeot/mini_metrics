@@ -1,5 +1,8 @@
 # Continuous threshold checks
 
+See the [threshold contract](../docs/threshold-contract.md) for supported behavior
+and links to its regression tests.
+
 Run from the repository root with Python 3.13+ and the development dependencies:
 
 ```bash

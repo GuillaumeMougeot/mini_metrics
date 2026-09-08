@@ -25,12 +25,12 @@ code; do not make notebooks or local model-output archives prerequisites for CI.
 | Priority | Work package | Concrete completion criterion |
 |---|---|---|
 | Done | Reconcile qualitative rules and instruction entry points | Root `AGENTS.md` and `dev/AGENTS.md` now contain the adapted rules; the original mini_metrics `.agents/rules` directory was empty. Verify instruction discovery in the next fresh agent session. |
-| 2 | Document threshold semantics before further optimization | A concise contract for exact versus sparse search, criterion dispatch, class/abstention conventions, interval extension, epsilon and tie behavior; each public promise linked to a regression test. Clarify intentionally unsupported inputs. |
+| Done | Document threshold semantics | [Threshold contract](threshold-contract.md) records exact/sparse routing, acceptance, class support, coordinates, ties, bootstrap and input limits with links to regression tests. |
 | Done | Review and reduce experiments | [Experiment review](../dev/experiments/README.md) retains one canonical paired study, freezes focused follow-ups, and records deletion of three overlapping scripts and two notebooks with verified hashes; all retained experiment source is frozen. No shared research framework is needed. |
-| 4 | Preserve the frozen research snapshot | Use the frozen study for reference and replay; develop new questions in separately named studies. Preserve frozen replay scripts and provenance. Before new use of curve annotations, surface suppressed optimizer errors; repair plotting API drift only when needed. Do not adopt every historical notebook. |
-| 5 | Resolve one remaining exact-path question if justified | Predeclare a single comparison, potentially zero versus minimum-observed-confidence boundary placement. Keep bootstrap disabled by default given the completed follow-up. Pair cohorts and report F1 losses and P/R/coverage shifts alongside dispersion. Independent outer partitions are required for generalization claims; broad sweeps are not an automatic next task. |
-| 6 | Optimize measured bottlenecks | Profile representative tied/continuous and long-tail workloads at several sizes. Change one bottleneck at a time; preserve independent oracle agreement and record comparable before/after runtime, memory and evaluation counts. Avoid abstraction or vectorization without a measured benefit. |
-| 7 | Stabilize CI and review scope | Observe hosted Python 3.13/3.14 runs and archive benchmark reports. Add deterministic gates for discovered failures; only adopt tighter timing gates after measuring runner variance. Keep large statistical runs opt-in or scheduled, not ordinary test prerequisites. |
+| Ongoing | Preserve the frozen research snapshot | Use the frozen study for reference and replay; develop new questions in separately named studies. Preserve frozen replay scripts and provenance. Before new use of curve annotations, surface suppressed optimizer errors; repair plotting API drift only when needed. Do not adopt every historical notebook. |
+| Deferred | Resolve one remaining exact-path question if justified | Predeclare a single comparison, potentially zero versus minimum-observed-confidence boundary placement. Keep bootstrap disabled by default given the completed follow-up. Pair cohorts and report F1 losses and P/R/coverage shifts alongside dispersion. Independent outer partitions are required for generalization claims; broad sweeps are not an automatic next task. |
+| Follow-up | Optimize measured bottlenecks | Profile representative tied/continuous and long-tail workloads at several sizes. Change one bottleneck at a time; preserve independent oracle agreement and record comparable before/after runtime, memory and evaluation counts. Avoid abstraction or vectorization without a measured benefit. |
+| Next | Stabilize CI and review scope | Observe hosted Python 3.13/3.14 runs and archive benchmark reports. Add deterministic gates for discovered failures; only adopt tighter timing gates after measuring runner variance. Keep large statistical runs opt-in or scheduled, not ordinary test prerequisites. |
 
 Work packages should be separate, small changes with a concrete before/after
 behavior, relevant validation, and explicit remaining limits. Research findings
@@ -42,7 +42,7 @@ reorganization or silently change defaults.
 The implementation checkpoint keeps epsilon `.01`, rejection-rate selection and
 zero bootstrap resamples as defaults. No new statistical sweep is required.
 
-Commit in dependency order:
+Completed commits, in dependency order (`dcb3773`, `3838b32`, `ebe51a3`, `9ba2b8b`):
 
 1. Core selection and API contracts: preserve positional `main()` arguments,
    validate confidence inputs in both coordinate modes, document heuristic bounds
@@ -54,14 +54,24 @@ Commit in dependency order:
    supplies the package API required by the frozen bootstrap replay scripts.
 4. CI artifacts and scheduled monitoring, with timing advisory on shared runners.
 
-The local monitor baseline is `benchmark-results/stable-schema2.json` (ignored).
+The local monitor baseline is `benchmark-results/data-fixes-final.json` (ignored).
 It identifies the source and environment used; compare only compatible reports.
-Validation on 2026-09-08: 295 tests passed on Python 3.13.7 and 3.14.5;
-Ruff passed, all nine frozen-study logic checks passed, and the default monitor
-produced 20 cost measurements and 144 valid calibration selections. Python 3.14
-also produced JUnit XML. Workflow YAML and the version matrix were checked.
-These local checks validate the configuration's commands. Hosted Actions execution and artifact upload must still be observed
-after these commits are pushed; local validation cannot certify those services.
+The subsequent regression audit against `9fe746e` found four container bugs:
+incorrect instance grouping for prediction levels, ignored slice steps, no-op row
+deletion, and incomplete string coercion. All are fixed in `9cddf69`, protected by
+22 data-container regressions. Internal row selection avoids revalidating existing
+normalized columns. Unsupported column/in-place deletion now raises explicitly.
+
+Local validation: **317 tests pass on Python 3.13.7 and 3.14.5**, Ruff passes, and
+the final monitor produced 20 cost measurements and 144 valid calibration
+selections. Sensitivity outputs were identical before and after the container
+fixes. Runtime ratios ranged from .619 to 1.34 and traced-memory ratios from .796
+to 1.0 against `data-fixes-before.json`, within the existing 1.5x limit. These are
+local measurements, not hosted performance guarantees.
+
+Hosted CI and artifact upload verification is the remaining checkpoint task.
+Further experiments and performance changes are deferred until there is a
+specific justified question or measured bottleneck. Retained studies stay frozen.
 
 ## Experiment lifecycle
 
