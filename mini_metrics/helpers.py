@@ -655,3 +655,58 @@ def select_connected_plateau_threshold(
     )
 
     return _threshold_interval_midpoint(lower, upper)
+
+
+def select_bootstrap_f1_threshold(
+    df: MetricDF,
+    *,
+    macro: bool = True,
+    eps: float = DEFAULT_OPT_EPS,
+    use_quantiles: bool = False,
+    n_bootstraps: int = 10,
+    seed: int | None = 42,
+    target_fn: Callable[[Iterable[float]], float] = max,
+    naive: bool = False,
+) -> float:
+    """Aggregate exact F1 selections, guarded by the original calibration curve.
+
+    Zero bootstraps returns the ordinary selection. Positive counts require one
+    row per instance at one level and cost n_bootstraps + 1 exact sweeps. The seed
+    makes results reproducible for the same row order. The original-curve guard
+    controls calibration loss only, not reporting-set loss or variability.
+    """
+    if isinstance(n_bootstraps, bool) or not isinstance(n_bootstraps, (int, np.integer)) or n_bootstraps < 0:
+        raise ValueError("n_bootstraps must be a nonnegative integer.")
+    data = df.data if isinstance(df, MetricDF) else df
+    curve = compute_f1_threshold_curve(data, macro=macro)
+    if not len(curve.thresholds):
+        return float("nan")
+
+    def select(curve: ThresholdCurve) -> float:
+        return select_connected_plateau_threshold(
+            curve.thresholds,
+            curve.values,
+            eps=eps,
+            target_fn=target_fn,
+            rejection_rates=curve.rejection_rates if use_quantiles else None,
+            naive=naive,
+        )
+
+    ordinary = select(curve)
+    if n_bootstraps == 0:
+        return ordinary
+    if len(np.unique(data.level)) != 1 or len(np.unique(data.instance_id)) != len(data):
+        raise ValueError("Bootstrap selection requires one row per instance at a single level.")
+    rng = np.random.default_rng(seed)
+    thresholds = [
+        select(compute_f1_threshold_curve(data.take(rng.integers(len(data), size=len(data))), macro=macro))
+        for _ in range(n_bootstraps)
+    ]
+    proposed = float(np.median(thresholds))
+    ascending_thresholds, values = curve.thresholds[::-1], curve.values[::-1]
+    eligible = np.abs(values - target_fn(values)) <= eps + 1e-12
+    state = int(np.searchsorted(ascending_thresholds, proposed, side="left"))
+    if state < len(values) and eligible[state]:
+        return proposed
+    candidates = ascending_thresholds[eligible]
+    return float(candidates[np.argmin(np.abs(candidates - proposed))])

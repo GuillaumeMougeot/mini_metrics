@@ -33,6 +33,7 @@ from mini_metrics.helpers import (
     pretty_string_dict,
     retry_with_kwargs,
     round_dict,
+    select_bootstrap_f1_threshold,
     select_connected_plateau_index,
     select_connected_plateau_threshold,
 )
@@ -384,6 +385,8 @@ class OptimalConfidenceThreshold(Metric):
         depth: int = 3,
         eps: float = DEFAULT_OPT_EPS,
         naive: bool = False,
+        n_bootstraps: int = 0,
+        bootstrap_seed: int | None = 42,
         *args,
         **kwargs,
     ):
@@ -393,6 +396,14 @@ class OptimalConfidenceThreshold(Metric):
         self.depth = depth
         self.eps = eps
         self.naive = naive
+        if (
+            isinstance(n_bootstraps, bool)
+            or not isinstance(n_bootstraps, (int, np.integer))
+            or n_bootstraps < 0
+        ):
+            raise ValueError("n_bootstraps must be a nonnegative integer.")
+        self.n_bootstraps = n_bootstraps
+        self.bootstrap_seed = bootstrap_seed
         super().__init__(*args, **kwargs)
 
     def compute(self, df: MetricDF, verbose: int = 1, **kwargs) -> tuple[float, int]:
@@ -416,6 +427,17 @@ class OptimalConfidenceThreshold(Metric):
 
         if is_fast_eligible:
             macro_arg = kwargs.get("macro", getattr(crit_inst, "macro", True))
+            if self.n_bootstraps:
+                return select_bootstrap_f1_threshold(
+                    base_df_data,
+                    macro=macro_arg,
+                    eps=self.eps,
+                    use_quantiles=self.use_quantiles,
+                    n_bootstraps=self.n_bootstraps,
+                    seed=self.bootstrap_seed,
+                    target_fn=self.target,
+                    naive=self.naive,
+                ), n_samples
             curve = compute_f1_threshold_curve(base_df_data, macro=macro_arg)
 
             if len(curve.thresholds) > 0:
