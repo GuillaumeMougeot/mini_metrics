@@ -4,9 +4,9 @@ Select thresholds on calibration data; report metrics on separate data. The
 calibration tolerance does not guarantee held-out F1 or stable operating points.
 Defaults remain `eps=.01`, `use_quantiles=True`, `naive=False`, and
 `n_bootstraps=0`. `OptimalConfidenceThreshold` defaults to ordinary Macro-F1;
-`evaluate_file(optimal=True)` defaults to MacroBalancedF1 and therefore uses the
-sparse path. Set `opt_crit=MacroF1` explicitly for exact F1 calibration through
-that entry point. CLI `--eps` controls absolute criterion tolerance.
+`evaluate_file(optimal=True)` and CLI `--optimal` use that same objective and
+exact path. To reproduce the previous calibration objective, explicitly pass
+`opt_crit=MacroBalancedF1` to `evaluate_file`; it retains the sparse path. CLI `--eps` controls absolute criterion tolerance.
 
 ## Exact F1 and acceptance
 
@@ -28,7 +28,8 @@ criteria retain generic search; an arbitrary criterion is not an exact F1 curve.
 Protected by [curve and routing tests](../tests/test_optimal_threshold.py):
 `test_curve_matches_public_metrics`, `test_curve_abstentions_reduce_recall`,
 `test_curve_empty`, `test_fast_routing`, `test_generic_routing`, and
-`test_empty_public_and_compute_apis`. The independent count oracle is checked by
+`test_empty_public_and_compute_apis`, and
+`test_evaluate_file_defaults_to_macro_f1_and_retains_explicit_balanced`. The independent count oracle is checked by
 `test_all_states_match_independent_counts` in
 [continuous regressions](../tests/test_threshold_regressions.py).
 
@@ -121,3 +122,27 @@ threshold variability, calibration regret, runtime and traced memory. Timing is
 advisory in hosted CI. See [monitoring instructions](../benchmarks/README.md) and
 [findings](../benchmarks/threshold_findings.md). Goldens are reviewed evidence,
 not outputs to regenerate automatically when selection changes.
+
+
+## Calibration default migration
+
+The previous `evaluate_file` default was MacroBalancedF1. A bounded audit on the
+four existing examples used identical `seed=42`, the existing stratified 90/10
+report/calibration split, epsilon `.01`, and rejection-rate mode. It explicitly
+compared the two objectives through the public API. This is a single-partition
+behavior audit, not a new stability study; objectives and search paths both differ.
+
+| Example / level | Reporting Macro-F1, balanced default | Reporting Macro-F1, ordinary default |
+|---|---:|---:|
+| demo and demo_trunc / 0, 1, 2 | .333333, .555556, .750000 | .333333, .555556, .750000 |
+| flemming_fastai_v1 / 0 | .223428 | .286306 |
+| flemming_fastai_v1 / 1 | .305688 | .356911 |
+| flemming_fastai_v1 / 2 | .315445 | .314396 |
+| small / 0 | .602196 | .593981 |
+
+In particular, the small example loses about `.0082` reporting F1; this is not a
+claim that ordinary calibration always wins or satisfies the study's `.005`
+reporting-loss diagnostic. The default aligns calibration with the intended
+reporting objective and the exact-path studies. Existing example goldens evaluate
+without `optimal=True` and remain unchanged. Frozen historical studies and their
+metadata are not rewritten to reflect the new default.

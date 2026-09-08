@@ -73,3 +73,12 @@ The evaluation input file (CSV) must match the following schema:
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and checks,
 [dev/README.md](dev/README.md) for exploratory work, and the
 [development plan](docs/development-plan.md) for consolidation priorities.
+
+
+Optimal calibration (`--optimal` or `evaluate_file(optimal=True)`) now optimizes
+ordinary Macro-F1, matching `OptimalConfidenceThreshold` and the reporting goal.
+This changes automatically calibrated thresholds compared with the previous
+MacroBalancedF1 default. Existing explicitly supplied thresholds are unaffected.
+The previous objective remains available through
+`evaluate_file(..., optimal=True, opt_crit=MacroBalancedF1)` in Python.
+See the [threshold contract](docs/threshold-contract.md).

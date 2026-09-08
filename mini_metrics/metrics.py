@@ -692,12 +692,14 @@ def evaluate_file(
     hierarchical: bool | None = None,
     use_quantiles: bool = True,
     eps: float = DEFAULT_OPT_EPS,
-    opt_crit: type[Metric[float]] = MacroBalancedF1,
+    opt_crit: type[Metric[float]] = MacroF1,
     seed: int | None = None,
     verbose: int = 1,
 ) -> dict:
     """Runs the metric evaluation pipeline on a single file path or existing MetricDF.
 
+    Calibration optimizes ordinary Macro-F1 by default. Pass opt_crit explicitly
+    to use a different objective, such as MacroBalancedF1.
     Returns the evaluated metrics dictionary without performing disk I/O.
     """
     if threshold is not None and optimal:

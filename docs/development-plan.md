@@ -30,7 +30,7 @@ code; do not make notebooks or local model-output archives prerequisites for CI.
 | Ongoing | Preserve the frozen research snapshot | Use the frozen study for reference and replay; develop new questions in separately named studies. Preserve frozen replay scripts and provenance. Before new use of curve annotations, surface suppressed optimizer errors; repair plotting API drift only when needed. Do not adopt every historical notebook. |
 | Deferred | Resolve one remaining exact-path question if justified | Predeclare a single comparison, potentially zero versus minimum-observed-confidence boundary placement. Keep bootstrap disabled by default given the completed follow-up. Pair cohorts and report F1 losses and P/R/coverage shifts alongside dispersion. Independent outer partitions are required for generalization claims; broad sweeps are not an automatic next task. |
 | Follow-up | Optimize measured bottlenecks | Profile representative tied/continuous and long-tail workloads at several sizes. Change one bottleneck at a time; preserve independent oracle agreement and record comparable before/after runtime, memory and evaluation counts. Avoid abstraction or vectorization without a measured benefit. |
-| Next | Stabilize CI and review scope | Observe hosted Python 3.13/3.14 runs and archive benchmark reports. Add deterministic gates for discovered failures; only adopt tighter timing gates after measuring runner variance. Keep large statistical runs opt-in or scheduled, not ordinary test prerequisites. |
+| Done | Stabilize CI and review scope | Hosted Python 3.13/3.14 tests, lint and monitoring passed; all three artifacts uploaded in [run 34225390622](https://github.com/GuillaumeMougeot/mini_metrics/actions/runs/34225390622). Add deterministic gates for discovered failures; only adopt tighter timing gates after measuring runner variance. Keep large statistical runs opt-in or scheduled, not ordinary test prerequisites. |
 
 Work packages should be separate, small changes with a concrete before/after
 behavior, relevant validation, and explicit remaining limits. Research findings
@@ -69,7 +69,15 @@ fixes. Runtime ratios ranged from .619 to 1.34 and traced-memory ratios from .79
 to 1.0 against `data-fixes-before.json`, within the existing 1.5x limit. These are
 local measurements, not hosted performance guarantees.
 
-Hosted CI and artifact upload verification is the remaining checkpoint task.
+Hosted CI and artifact uploads were verified for `e0cd8ad` in
+[run 34225390622](https://github.com/GuillaumeMougeot/mini_metrics/actions/runs/34225390622):
+both Python test jobs, lint and threshold monitoring succeeded; the two JUnit
+artifacts and monitor report were present.
+
+The calibration default now aligns `evaluate_file(optimal=True)` and CLI
+`--optimal` with the existing optimizer default: ordinary Macro-F1. Balanced F1
+remains an explicit Python option. This follows the reporting objective and the
+focus of the studies, not a claim of universal superiority over balanced F1.
 Further experiments and performance changes are deferred until there is a
 specific justified question or measured bottleneck. Retained studies stay frozen.
 

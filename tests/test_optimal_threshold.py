@@ -477,3 +477,35 @@ def test_main_preserves_positional_precision_and_verbosity():
     assert bound.arguments["precision"] == 6
     assert bound.arguments["verbose"] == 0
     assert bound.arguments["eps"] == 0.05
+
+
+def test_evaluate_file_defaults_to_macro_f1_and_retains_explicit_balanced(monkeypatch):
+    metrics = importlib.import_module("mini_metrics.metrics")
+    rng = np.random.default_rng(42)
+    df = _make_df(
+        rng.choice(["a", "b", "c"], 200),
+        rng.choice(["a", "b", "c"], 200),
+        rng.uniform(size=200),
+    )
+    criteria = []
+    original = metrics.OptimalConfidenceThreshold.compute
+
+    def tracked(self, *args, **kwargs):
+        criteria.append(self.crit)
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(metrics.OptimalConfidenceThreshold, "compute", tracked)
+    kwargs = dict(
+        optimal=True,
+        seed=42,
+        simple=True,
+        hierarchical=False,
+        pattern=r"^(f1|optimal_confidence_threshold)$",
+        verbose=0,
+    )
+    default = metrics.evaluate_file(df, **kwargs)
+    assert criteria[-1] is MacroF1
+    explicit = metrics.evaluate_file(df, opt_crit=MacroF1, **kwargs)
+    assert default == explicit
+    metrics.evaluate_file(df, opt_crit=MacroBalancedF1, **kwargs)
+    assert criteria[-1] is MacroBalancedF1
