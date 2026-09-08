@@ -18,19 +18,19 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install 3.12
+        run: uv python install 3.13
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --locked --python 3.13
 
       - name: Lint with ruff
-        run: uv run ruff check mini_metrics tests
+        run: uv run --no-sync ruff check mini_metrics tests
 
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.12", "3.13", "3.14"]
+        python-version: ["3.13", "3.14"]
     steps:
       - uses: actions/checkout@v6
 
@@ -43,7 +43,7 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --locked --python ${{ matrix.python-version }}
 
       - name: Test with pytest
-        run: uv run pytest
+        run: uv run --no-sync pytest
