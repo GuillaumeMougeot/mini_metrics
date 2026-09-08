@@ -17,7 +17,7 @@ uv sync
 To run the unit tests:
 
 ```bash
-uv run pytest
+uv run --no-sync pytest
 ```
 
 ## CLI Usage
@@ -27,7 +27,7 @@ The package exposes a command-line interface `mm_metrics`.
 ### Basic Command
 
 ```bash
-uv run mm_metrics -f path/to/results.csv -o path/to/output_base
+uv run --no-sync mm_metrics -f path/to/results.csv -o path/to/output_base
 ```
 
 ### Options
@@ -67,3 +67,9 @@ The evaluation input file (CSV) must match the following schema:
 - `prediction_level` (`int`): The resolved level at which the model made a prediction.
 - `prediction_made` (`bool`): Whether prediction confidence exceeded the threshold.
 - `correct` (`int`): Indication of classification correctness (`-1` incorrect, `0` abstain, `1` correct).
+
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and checks,
+[dev/README.md](dev/README.md) for exploratory work, and the
+[development plan](docs/development-plan.md) for consolidation priorities.
