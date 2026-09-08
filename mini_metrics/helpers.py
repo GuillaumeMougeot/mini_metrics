@@ -375,7 +375,8 @@ def compute_f1_threshold_curve(df: MetricDF, macro: bool = True) -> ThresholdCur
             values=np.empty(0, dtype=np.float64),
         )
 
-    unique_classes, inv = np.unique(np.concatenate([labels, preds]), return_inverse=True)
+    # Factorize repeated labels before sorting the distinct classes.
+    inv, unique_classes = pd.factorize(np.concatenate([labels, preds]), sort=True)
     label_ids = inv[:n_total]
     pred_ids = inv[n_total:]
     num_classes = len(unique_classes)

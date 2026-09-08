@@ -29,9 +29,9 @@ code; do not make notebooks or local model-output archives prerequisites for CI.
 | Done | Review and reduce experiments | [Experiment review](../dev/experiments/README.md) retains one canonical paired study, freezes focused follow-ups, and records deletion of three overlapping scripts and two notebooks with verified hashes; all retained experiment source is frozen. No shared research framework is needed. |
 | Done | Define container boundaries | [Container contract](data-contract.md) specifies validated indexing, structural validation, atomic column replacement, explicit unsupported pandas operations, and type-stub alignment. |
 | Ongoing | Preserve the frozen research snapshot | Use the frozen study for reference and replay; develop new questions in separately named studies. Preserve frozen replay scripts and provenance. Before new use of curve annotations, surface suppressed optimizer errors; repair plotting API drift only when needed. Do not adopt every historical notebook. |
-| Deferred | Resolve one remaining exact-path question if justified | Predeclare a single comparison, potentially zero versus minimum-observed-confidence boundary placement. Keep bootstrap disabled by default given the completed follow-up. Pair cohorts and report F1 losses and P/R/coverage shifts alongside dispersion. Independent outer partitions are required for generalization claims; broad sweeps are not an automatic next task. |
-| Follow-up | Optimize measured bottlenecks | Monitor schema 3 now includes loading, slicing, splitting and ordered/interleaved hierarchical threshold updates. Profile a demonstrated bottleneck before changing algorithms. Change one bottleneck at a time; preserve independent oracle agreement and record comparable before/after runtime, memory and evaluation counts. Avoid abstraction or vectorization without a measured benefit. |
-| Done | Stabilize CI and review scope | Hosted Python 3.13/3.14 tests, lint and monitoring passed; all three artifacts uploaded in [run 34225632539](https://github.com/GuillaumeMougeot/mini_metrics/actions/runs/34225632539). Add deterministic gates for discovered failures; only adopt tighter timing gates after measuring runner variance. Keep large statistical runs opt-in or scheduled, not ordinary test prerequisites. |
+| Paused | Statistical policy questions | Paused at the user's request while performance and maintenance take priority. Resume only when requested; a future question could compare zero versus minimum-observed-confidence boundary placement. Keep bootstrap disabled by default given the completed follow-up. Pair cohorts and report F1 losses and P/R/coverage shifts alongside dispersion. Independent outer partitions are required for generalization claims; broad sweeps are not an automatic next task. |
+| Active | Optimize measured bottlenecks | [Real-workload profiling](../benchmarks/performance-findings.md) reduced full-file exact threshold time with unchanged results. Next candidate: ordinary Macro-F1 class grouping. Monitor schema 3 includes loading, slicing, splitting and ordered/interleaved hierarchical threshold updates. Profile a demonstrated bottleneck before changing algorithms. Change one bottleneck at a time; preserve independent oracle agreement and record comparable before/after runtime, memory and evaluation counts. Avoid abstraction or vectorization without a measured benefit. |
+| Done | Stabilize CI and review scope | Hosted Python 3.13/3.14 tests, lint and monitoring passed; all three artifacts uploaded in [run 34228368959](https://github.com/GuillaumeMougeot/mini_metrics/actions/runs/34228368959). Add deterministic gates for discovered failures; only adopt tighter timing gates after measuring runner variance. Keep large statistical runs opt-in or scheduled, not ordinary test prerequisites. |
 
 Work packages should be separate, small changes with a concrete before/after
 behavior, relevant validation, and explicit remaining limits. Research findings
@@ -70,8 +70,8 @@ fixes. Runtime ratios ranged from .619 to 1.34 and traced-memory ratios from .79
 to 1.0 against `data-fixes-before.json`, within the existing 1.5x limit. These are
 local measurements, not hosted performance guarantees.
 
-Hosted CI and artifact uploads were verified for `3ec4c09` in
-[run 34225632539](https://github.com/GuillaumeMougeot/mini_metrics/actions/runs/34225632539):
+Hosted CI and artifact uploads were verified for `7462185` in
+[run 34228368959](https://github.com/GuillaumeMougeot/mini_metrics/actions/runs/34228368959):
 both Python test jobs, lint and threshold monitoring succeeded; the two JUnit
 artifacts and monitor report were present.
 

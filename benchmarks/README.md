@@ -131,3 +131,9 @@ container workloads. Schema 1/2 reports are incompatible baselines; capture a
 fresh baseline after this change. The local comparison for container hardening is
 `benchmark-results/container-control-before.json` versus
 `benchmark-results/container-control-after.json`.
+
+## Full real workloads
+
+Use the opt-in `benchmarks.real_workloads` runner for large local CSVs. See
+[performance findings](performance-findings.md) for commands, measured speedups,
+profile evidence and limitations. Statistical policy studies remain deferred.
