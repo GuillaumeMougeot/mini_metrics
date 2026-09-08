@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 
+from mini_metrics import DEFAULT_OPT_EPS
 from mini_metrics.data import MetricDF, group_indices
 from mini_metrics.simple import cumsum, group_segments
 
@@ -382,7 +383,7 @@ def compute_f1_threshold_curve(df: MetricDF, macro: bool = True) -> ThresholdCur
     true_support = np.bincount(label_ids, minlength=num_classes)
     is_correct = label_ids == pred_ids
 
-    order = np.argsort(-confs, kind="mergesort")
+    order = np.argsort(-confs, kind="stable")
     sorted_confs = confs[order]
     sorted_preds = pred_ids[order]
     sorted_correct = is_correct[order]
@@ -454,199 +455,203 @@ def compute_f1_threshold_curve(df: MetricDF, macro: bool = True) -> ThresholdCur
     )
 
 
+def select_connected_plateau(
+    positions: np.ndarray,
+    values: np.ndarray,
+    eps: float,
+    target_fn: Callable[[Iterable[float]], float],
+    *,
+    extend: bool | str = "both",
+    naive: bool = False,
+) -> tuple[np.ndarray, np.ndarray, int, int]:
+    """Return sorted positions, original indices, and selected inclusive bounds."""
+    positions = np.asarray(positions, dtype=np.float64)
+    values = np.asarray(values, dtype=np.float64)
+    eps = float(eps)
+
+    if isinstance(extend, bool):
+        extend = "both" if extend else "none"
+    extend = extend.lower().strip()
+    if extend not in ["none", "left", "right", "both"]:
+        raise ValueError("extend must be 'none', 'left', 'right', or 'both'.")
+
+    if positions.ndim != 1 or values.ndim != 1:
+        raise ValueError("positions and values must be one-dimensional.")
+    if positions.size != values.size:
+        raise ValueError("positions and values must have equal length.")
+    if positions.size == 0:
+        raise ValueError("Cannot select plateau from empty arrays.")
+    if not np.all(np.isfinite(positions)):
+        raise ValueError("positions must contain only finite values.")
+    if not np.all(np.isfinite(values)):
+        raise ValueError("values must contain only finite values.")
+    if not np.isfinite(eps) or eps < 0:
+        raise ValueError("eps must be finite and nonnegative.")
+    if not any(target_fn is fn for fn in (max, min, np.max, np.min)):
+        raise ValueError("target_fn must be max, min, np.max, or np.min.")
+
+    sort_idx = np.argsort(positions, kind="stable")
+    sorted_pos = positions[sort_idx]
+    sorted_vals = values[sort_idx]
+
+    if np.any(sorted_pos[1:] == sorted_pos[:-1]):
+        raise ValueError("positions must be unique.")
+
+    optimum = float(target_fn(sorted_vals))
+    eligible = np.abs(sorted_vals - optimum) <= eps + 1e-12
+    if not naive:
+        padded = np.concatenate(([False], eligible, [False]))
+        starts = np.flatnonzero(~padded[:-1] & padded[1:])
+        ends = np.flatnonzero(padded[:-1] & ~padded[1:]) - 1
+
+        if extend in ["both", "left"]:
+            starts = np.maximum(starts - 1, 0)
+        if extend in ["both", "right"]:
+            ends = np.minimum(ends + 1, len(sorted_pos) - 1)
+
+        left, right = sorted_pos[starts], sorted_pos[ends]
+
+        widths = right - left
+        tied = np.flatnonzero(np.isclose(widths, np.max(widths), rtol=0.0, atol=1e-12))
+
+        best_component = int(tied[0])
+        start = starts[best_component]
+        end = ends[best_component]
+    else:
+        eligible_idx = np.flatnonzero(eligible)
+        start, end = eligible_idx[0], eligible_idx[-1]
+        if extend in ["both", "left"]:
+            start = max(0, start - 1)
+        if extend in ["both", "right"]:
+            end = min(len(sorted_pos) - 1, end + 1)
+
+    return sorted_pos, sort_idx, int(start), int(end)
+
+
 def select_connected_plateau_index(
     positions: np.ndarray,
     values: np.ndarray,
-    eps: float = 1e-2,
+    eps: float = DEFAULT_OPT_EPS,
     target_fn: Callable[[Iterable[float]], float] = max,
+    naive: bool = False,
+    extend: bool | str = "left",
 ) -> int:
-    """Selects the realizable index nearest the center of the best connected near-optimal component."""
-    if len(positions) == 0:
-        raise ValueError("Cannot select plateau from empty arrays.")
-    if len(positions) == 1:
-        return 0
+    """Return the original index nearest the selected component's midpoint.
 
-    sort_idx = np.argsort(positions)
-    sorted_pos = np.asarray(positions)[sort_idx]
-    sorted_vals = np.asarray(values)[sort_idx]
-
-    optimum = float(target_fn(sorted_vals))
-    eligible = np.abs(sorted_vals - optimum) <= (eps + 1e-12)
-
-    components: list[tuple[int, int]] = []
-    in_comp = False
-    start = 0
-    for i, el in enumerate(eligible):
-        if el:
-            if not in_comp:
-                start = i
-                in_comp = True
-        else:
-            if in_comp:
-                components.append((start, i - 1))
-                in_comp = False
-    if in_comp:
-        components.append((start, len(eligible) - 1))
-
-    if not components:
-        raise RuntimeError(f"No values close to target({target_fn}) within eps={eps}")
-
-    comp_opt_indices = []
-    for c_idx, (s, e) in enumerate(components):
-        comp_vals = sorted_vals[s : e + 1]
-        best_in_comp = float(target_fn(comp_vals))
-        if abs(best_in_comp - optimum) <= 1e-12:
-            comp_opt_indices.append(c_idx)
-
-    if not comp_opt_indices:
-        best_diff = min(abs(float(target_fn(sorted_vals[s : e + 1])) - optimum) for s, e in components)
-        comp_opt_indices = [
-            c_idx
-            for c_idx, (s, e) in enumerate(components)
-            if abs(float(target_fn(sorted_vals[s : e + 1])) - optimum) <= best_diff + 1e-12
-        ]
-
-    # Deterministic tie-break among optimal components:
-    # 1. Greatest width in position space: abs(pos[e] - pos[s])
-    # 2. Higher coverage (smaller position value)
-    best_c_idx = min(
-        comp_opt_indices,
-        key=lambda c_idx: (
-            -round(float(abs(sorted_pos[components[c_idx][1]] - sorted_pos[components[c_idx][0]])), 9),
-            round(float(min(sorted_pos[components[c_idx][0]], sorted_pos[components[c_idx][1]])), 9),
-            c_idx,
-        ),
+    Select the widest connected near-optimal component in position space.
+    Component ties favor the smaller starting position; midpoint ties
+    favor the smaller candidate position.
+    """
+    sorted_pos, sort_idx, start, end = select_connected_plateau(
+        positions, values, eps, target_fn, naive=naive, extend=extend
     )
+    sorted_values = np.asarray(values)[sort_idx]
 
-    best_s, best_e = components[best_c_idx]
-    pos_center = (sorted_pos[best_s] + sorted_pos[best_e]) / 2.0
-
-    cand_indices = np.arange(best_s, best_e + 1)
-    dists = np.abs(sorted_pos[cand_indices] - pos_center)
-    best_cand_rel_idx = min(
-        range(len(cand_indices)),
-        key=lambda idx: (
-            round(float(dists[idx]), 9),
-            round(float(sorted_pos[cand_indices[idx]]), 9),
-            sort_idx[cand_indices[idx]],
-        ),
-    )
-    selected_sorted_idx = cand_indices[best_cand_rel_idx]
-    return int(sort_idx[selected_sorted_idx])
+    center = sorted_pos[start] / 2.0 + sorted_pos[end] / 2.0
+    distances = np.abs(sorted_pos - center)
+    distances[np.abs(sorted_values - target_fn(sorted_values)) > eps + 1e-12] = float("inf")
+    distances[:start] = float("inf")
+    distances[end + 1 :] = float("inf")
+    tied = np.flatnonzero(np.isclose(distances, distances.min(), rtol=0.0, atol=1e-12))
+    return int(sort_idx[tied[0]])
 
 
 def find_connected_component_bounds(
     positions: np.ndarray,
     values: np.ndarray,
-    eps: float = 1e-2,
+    eps: float = DEFAULT_OPT_EPS,
     target_fn: Callable[[Iterable[float]], float] = max,
+    *,
+    extend: bool | str = "left",
+    naive: bool = False,
 ) -> tuple[float, float]:
-    """Finds the min and max position bounds of the best connected near-optimal component."""
-    if len(positions) == 0:
-        return 0.0, 1.0
-    if len(positions) == 1:
-        val = float(positions[0])
-        return val, val
+    """Return the selected component's bounds.
 
-    sort_idx = np.argsort(positions)
-    sorted_pos = np.asarray(positions)[sort_idx]
-    sorted_vals = np.asarray(values)[sort_idx]
-
-    optimum = float(target_fn(sorted_vals))
-    eligible = np.abs(sorted_vals - optimum) <= (eps + 1e-12)
-
-    components: list[tuple[int, int]] = []
-    in_comp = False
-    start = 0
-    for i, el in enumerate(eligible):
-        if el:
-            if not in_comp:
-                start = i
-                in_comp = True
-        else:
-            if in_comp:
-                components.append((start, i - 1))
-                in_comp = False
-    if in_comp:
-        components.append((start, len(eligible) - 1))
-
-    if not components:
-        return float(np.min(positions)), float(np.max(positions))
-
-    comp_opt_indices = []
-    for c_idx, (s, e) in enumerate(components):
-        comp_vals = sorted_vals[s : e + 1]
-        best_in_comp = float(target_fn(comp_vals))
-        if abs(best_in_comp - optimum) <= 1e-12:
-            comp_opt_indices.append(c_idx)
-
-    if not comp_opt_indices:
-        best_diff = min(abs(float(target_fn(sorted_vals[s : e + 1])) - optimum) for s, e in components)
-        comp_opt_indices = [
-            c_idx
-            for c_idx, (s, e) in enumerate(components)
-            if abs(float(target_fn(sorted_vals[s : e + 1])) - optimum) <= best_diff + 1e-12
-        ]
-
-    best_c_idx = min(
-        comp_opt_indices,
-        key=lambda c_idx: (
-            -round(float(abs(sorted_pos[components[c_idx][1]] - sorted_pos[components[c_idx][0]])), 9),
-            round(float(min(sorted_pos[components[c_idx][0]], sorted_pos[components[c_idx][1]])), 9),
-            c_idx,
-        ),
+    Extension includes adjacent evaluated positions and can include ineligible
+    endpoints. Bounds are clamped to the supplied positions; sparse positions
+    do not establish exact decision intervals or an implicit zero boundary.
+    """
+    sorted_pos, _, start, end = select_connected_plateau(
+        positions,
+        values,
+        eps,
+        target_fn,
+        extend=extend,
+        naive=naive,
     )
 
-    best_s, best_e = components[best_c_idx]
-    return float(min(sorted_pos[best_s], sorted_pos[best_e])), float(
-        max(sorted_pos[best_s], sorted_pos[best_e])
-    )
+    return float(sorted_pos[start]), float(sorted_pos[end])
 
 
-def compute_stable_threshold(
-    confs: np.ndarray,
-    accepted_mask: np.ndarray,
+def _threshold_interval_midpoint(lower: float, upper: float) -> float:
+    """Return an interior representative, respecting an open lower boundary."""
+    midpoint = lower + (upper - lower) / 2.0
+    # The upper endpoint is valid even when rounding reaches the lower one.
+    return float(midpoint if lower < midpoint <= upper else upper)
+
+
+def select_connected_plateau_threshold(
+    thresholds: np.ndarray,
+    values: np.ndarray,
+    eps: float = DEFAULT_OPT_EPS,
+    target_fn: Callable[[Iterable[float]], float] = max,
+    *,
+    rejection_rates: np.ndarray | None = None,
+    naive: bool = False,
 ) -> float:
-    """Places the threshold in the decision-equivalent interval (largest rejected, smallest accepted]."""
-    confs = np.asarray(confs, dtype=np.float64)
-    accepted_mask = np.asarray(accepted_mask, dtype=bool)
-    if len(confs) == 0:
-        return 1.0
+    """Return a central threshold from an exact near-optimal component.
 
-    accepted_confs = confs[accepted_mask]
-    rejected_confs = confs[~accepted_mask]
+    thresholds must enumerate every distinct observed confidence, with
+    values evaluated under confidence >= threshold.
 
-    if len(rejected_confs) == 0:
-        # All observations accepted: preserve observed minimum confidence
-        c_acc_min = float(np.min(accepted_confs))
-        threshold = c_acc_min
-    elif len(accepted_confs) == 0:
-        # No observations accepted
-        c_rej_max = float(np.max(rejected_confs))
-        if c_rej_max < 1.0:
-            threshold = 1.0
-        else:
-            threshold = float(np.nextafter(c_rej_max, np.inf))
-    else:
-        c_acc_min = float(np.min(accepted_confs))
-        c_rej_max = float(np.max(rejected_confs))
-        if c_rej_max >= c_acc_min:
-            raise ValueError(
-                f"Invalid decision partition: max rejected ({c_rej_max}) >= min accepted ({c_acc_min}). "
-                "Confidence ties must be accepted or rejected together."
+    If rejection_rates is supplied, measure component width and centrality
+    in rejection-rate space, then return the midpoint of the selected
+    state's confidence interval.
+
+    Otherwise, measure width and centrality in confidence space using
+    the full decision-equivalent intervals. Experimental naive=True spans
+    disconnected components; its confidence midpoint can violate F1 tolerance.
+    """
+    thresholds = np.asarray(thresholds, dtype=np.float64)
+    values = np.asarray(values, dtype=np.float64)
+    if values.ndim != 1 or thresholds.ndim != 1 or values.size != thresholds.size:
+        raise ValueError("thresholds and values must be one-dimensional and of equal length.")
+    if thresholds.size == 0:
+        raise ValueError("Cannot select plateau from empty arrays.")
+    if not np.all(np.isfinite(thresholds)):
+        raise ValueError("thresholds must contain only finite values.")
+    if np.any((thresholds < 0.0) | (thresholds > 1.0)):
+        raise ValueError("thresholds must lie in [0, 1].")
+
+    if np.unique(thresholds).size != thresholds.size:
+        raise ValueError("thresholds must be unique.")
+
+    if rejection_rates is not None:
+        target_threshold = thresholds[
+            select_connected_plateau_index(
+                rejection_rates, values, eps, target_fn, naive=naive, extend="left"
             )
-        mid = (c_rej_max + c_acc_min) / 2.0
-        if c_rej_max < mid <= c_acc_min:
-            threshold = float(mid)
-        else:
-            # Arithmetic midpoint collapsed due to adjacent floating point precision
-            threshold = c_acc_min
+        ]
+        previous_threshold = np.max(thresholds[thresholds < target_threshold], initial=0.0)
+        return _threshold_interval_midpoint(previous_threshold, target_threshold)
 
-    # Verify reconstruction
-    reconstructed_mask = confs >= threshold
-    if not np.array_equal(reconstructed_mask, accepted_mask):
-        raise RuntimeError(
-            f"Failed to reproduce accepted set with threshold {threshold}: "
-            f"expected {int(np.sum(accepted_mask))} accepted, got {int(np.sum(reconstructed_mask))}."
-        )
-    return float(threshold)
+    order = np.argsort(thresholds, kind="stable")
+    sorted_thresholds = thresholds[order]
+    sorted_values = values[order]
+
+    # Zero has the same acceptance set as the minimum confidence. Include it
+    # in the geometry so the accept-all interval contributes its full width.
+    if sorted_thresholds[0] > 0.0:
+        sorted_thresholds = np.insert(sorted_thresholds, 0, 0.0)
+        sorted_values = np.insert(sorted_values, 0, sorted_values[0])
+
+    lower, upper = find_connected_component_bounds(
+        sorted_thresholds,
+        sorted_values,
+        eps,
+        target_fn,
+        extend="left",
+        naive=naive,
+    )
+
+    return _threshold_interval_midpoint(lower, upper)

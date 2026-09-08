@@ -1,4 +1,24 @@
+"""Threshold optimization contracts and example-data regressions.
+
+CLI golden checks live in test_metrics.py. Run this module with:
+python -m pytest -q tests/test_optimal_threshold.py
+
+The decimal tie tests intentionally require the agreed absolute positional
+tolerance (1e-12) in BOTH component-width and midpoint-distance comparisons.
+They are ordinary regression tests, not xfails.
+
+Example-data oracle checks use at most 256 rows PER LEVEL and 17 threshold
+states per level to bound runtime. The CLI golden tests still use full files.
+Golden files are never generated or overwritten by this suite. They detect
+changes over time; oracle agreement alone cannot detect two implementations
+changing together. These tests measure reproducibility/correctness, not a
+statistical guarantee of threshold stability across independently drawn data.
+"""
+
 from __future__ import annotations
+
+import importlib
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -6,7 +26,6 @@ import pytest
 from mini_metrics.data import MetricDF
 from mini_metrics.helpers import (
     compute_f1_threshold_curve,
-    compute_stable_threshold,
     find_connected_component_bounds,
     select_connected_plateau_index,
 )
@@ -18,418 +37,443 @@ from mini_metrics.metrics import (
     OptimalConfidenceThreshold,
 )
 
+EXAMPLE_FILES = ("demo_trunc", "demo", "flemming_fastai_v1", "small")
+F1_CASES = [pytest.param(True, id="macro"), pytest.param(False, id="micro")]
+SCORE_ATOL = 1e-11
 
-def _make_df(
-    labels: list[str] | np.ndarray,
-    preds: list[str] | np.ndarray,
-    confs: list[float] | np.ndarray,
-    levels: list[int] | np.ndarray | None = None,
-) -> MetricDF:
+
+def _make_df(labels, preds, confs, levels=None):
     n = len(labels)
-    if levels is None:
-        levels = [0] * n
-    data = {
-        "instance_id": np.arange(n, dtype=np.int64),
-        "filename": [f"f_{i}.png" for i in range(n)],
-        "level": np.asarray(levels, dtype=np.int64),
-        "label": np.asarray(labels, dtype=object),
-        "prediction": np.asarray(preds, dtype=object),
-        "confidence": np.asarray(confs, dtype=np.float64),
-        "threshold": np.zeros(n, dtype=np.float64),
-    }
-    return MetricDF(data)
-
-
-def _brute_force_f1_curve(df: MetricDF, macro: bool = True) -> list[tuple[float, int, float]]:
-    confs = np.asarray(df.confidence, dtype=np.float64)
-    unique_confs = np.sort(np.unique(confs))[::-1]
-    f1_metric = MacroF1() if macro else MicroF1()
-    f1_metric.is_per_level = False
-
-    results = []
-    base_dict = df.data.to_dict()
-    for c in unique_confs:
-        tarr = np.full(len(df), c, dtype=np.float64)
-        pred_made = base_dict["confidence"] >= tarr
-        correct = pred_made * ((base_dict["prediction"] == base_dict["label"]) * 2 - 1)
-        fast_dict = {
-            **base_dict,
-            "prediction": base_dict["prediction"],
-            "label": base_dict["label"],
-            "threshold": tarr,
-            "prediction_made": pred_made,
-            "correct": correct,
-        }
-        fast_df = MetricDF(fast_dict, _validated=True)
-        val = float(f1_metric(fast_df))
-        results.append((float(c), int(np.sum(pred_made)), val))
-    return results
-
-
-# =====================================================================
-# 1. Fast F1 threshold curve equivalence tests
-# =====================================================================
-
-
-@pytest.mark.parametrize("macro", [True, False])
-def test_fast_f1_curve_equivalence_basic(macro: bool):
-    labels = ["cat", "cat", "dog", "dog", "bird", "bird", "cat"]
-    preds = ["cat", "dog", "dog", "bird", "bird", "bird", "cat"]
-    confs = [0.95, 0.85, 0.75, 0.65, 0.55, 0.45, 0.35]
-    df = _make_df(labels, preds, confs)
-
-    curve = compute_f1_threshold_curve(df, macro=macro)
-    brute = _brute_force_f1_curve(df, macro=macro)
-
-    assert len(curve.thresholds) == len(brute)
-    for (exp_c, exp_n, exp_val), act_c, act_n, act_val, act_rej in zip(
-        brute,
-        curve.thresholds,
-        curve.accepted_counts,
-        curve.values,
-        curve.rejection_rates,
-    ):
-        assert act_c == pytest.approx(exp_c)
-        assert act_n == exp_n
-        assert act_rej == pytest.approx(1.0 - exp_n / len(labels))
-        assert act_val == pytest.approx(exp_val, abs=1e-12)
-
-
-@pytest.mark.parametrize("macro", [True, False])
-def test_fast_f1_curve_predicted_only_and_abstain(macro: bool):
-    # 'fox' is predicted but never in true labels (predicted-only class)
-    # 'fish' is in true labels but never predicted (true-only class)
-    labels = ["cat", "dog", "fish", "dog", "cat"]
-    preds = ["cat", "fox", "fox", "dog", "fox"]
-    confs = [0.9, 0.8, 0.7, 0.6, 0.5]
-    df = _make_df(labels, preds, confs)
-
-    curve = compute_f1_threshold_curve(df, macro=macro)
-    brute = _brute_force_f1_curve(df, macro=macro)
-
-    assert len(curve.thresholds) == len(brute)
-    for (exp_c, exp_n, exp_val), act_c, act_n, act_val in zip(brute, curve.thresholds, curve.accepted_counts, curve.values):
-        assert act_c == pytest.approx(exp_c)
-        assert act_n == exp_n
-        assert act_val == pytest.approx(exp_val, abs=1e-12)
-
-
-@pytest.mark.parametrize("macro", [True, False])
-def test_fast_f1_curve_tied_confidences(macro: bool):
-    # Multiple tied confidence values
-    labels = ["a", "b", "c", "a", "b", "c", "a", "b"]
-    preds = ["a", "a", "c", "b", "b", "c", "a", "c"]
-    confs = [0.8, 0.8, 0.8, 0.5, 0.5, 0.2, 0.2, 0.2]
-    df = _make_df(labels, preds, confs)
-
-    curve = compute_f1_threshold_curve(df, macro=macro)
-    brute = _brute_force_f1_curve(df, macro=macro)
-
-    assert len(curve.thresholds) == 3  # exactly 3 distinct confidence levels
-    assert list(curve.accepted_counts) == [3, 5, 8]
-    for (exp_c, exp_n, exp_val), act_c, act_n, act_val in zip(brute, curve.thresholds, curve.accepted_counts, curve.values):
-        assert act_c == pytest.approx(exp_c)
-        assert act_n == exp_n
-        assert act_val == pytest.approx(exp_val, abs=1e-12)
-
-
-@pytest.mark.parametrize("macro", [True, False])
-def test_fast_f1_curve_all_equal_confidence(macro: bool):
-    labels = ["a", "b", "c"]
-    preds = ["a", "b", "a"]
-    confs = [0.7, 0.7, 0.7]
-    df = _make_df(labels, preds, confs)
-
-    curve = compute_f1_threshold_curve(df, macro=macro)
-    brute = _brute_force_f1_curve(df, macro=macro)
-
-    assert len(curve.thresholds) == 1
-    assert curve.accepted_counts[0] == 3
-    assert curve.values[0] == pytest.approx(brute[0][2], abs=1e-12)
-
-
-@pytest.mark.parametrize("seed", [42, 123, 999, 2026])
-@pytest.mark.parametrize("macro", [True, False])
-def test_fast_f1_curve_randomized_trials(seed: int, macro: bool):
-    rng = np.random.default_rng(seed)
-    n = 150
-    classes = [f"cls_{i}" for i in range(12)]
-    # Imbalanced class probabilities for long-tail support
-    probs = np.exp(-np.arange(12) / 3.0)
-    probs /= probs.sum()
-
-    labels = rng.choice(classes, size=n, p=probs)
-    # 70% chance prediction matches label, 30% random class (some unseen)
-    preds = []
-    for lbl in labels:
-        if rng.random() < 0.7:
-            preds.append(lbl)
-        else:
-            preds.append(rng.choice(classes + ["extra_1", "extra_2"]))
-
-    # Random confidences with repeated values, zeros, and ones
-    raw_confs = rng.choice([0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0, *rng.uniform(0, 1, size=20)], size=n)
-    df = _make_df(labels, preds, raw_confs)
-
-    curve = compute_f1_threshold_curve(df, macro=macro)
-    brute = _brute_force_f1_curve(df, macro=macro)
-
-    assert len(curve.thresholds) == len(brute)
-    for (exp_c, exp_n, exp_val), act_c, act_n, act_val in zip(brute, curve.thresholds, curve.accepted_counts, curve.values):
-        assert act_c == pytest.approx(exp_c)
-        assert act_n == exp_n
-        if np.isnan(exp_val):
-            assert np.isnan(act_val)
-        else:
-            assert act_val == pytest.approx(exp_val, abs=1e-11)
-
-
-# =====================================================================
-# 2. Fast-path routing and fallback tests
-# =====================================================================
-
-
-def test_routing_macro_and_micro_f1_uses_fast_path(monkeypatch):
-    labels = ["a", "b", "c", "a"]
-    preds = ["a", "b", "b", "a"]
-    confs = [0.9, 0.8, 0.7, 0.6]
-    df = _make_df(labels, preds, confs)
-
-    # Monkeypatch MetricDF __call__ to detect if full metric evaluation occurs during search
-    call_counts = {"count": 0}
-    orig_macro_call = MacroF1.__call__
-
-    def tracked_macro_call(self, *args, **kwargs):
-        call_counts["count"] += 1
-        return orig_macro_call(self, *args, **kwargs)
-
-    monkeypatch.setattr(MacroF1, "__call__", tracked_macro_call)
-
-    # OptimalConfidenceThreshold with MacroF1 should compute in 1 fast sweep without calling crit() repeatedly
-    opt = OptimalConfidenceThreshold(crit=MacroF1)
-    thr, count = opt.compute(df, verbose=0)
-    assert count == 4
-    assert 0.0 <= thr <= 1.0
-    # The fast path should NOT have invoked MacroF1.__call__
-    assert call_counts["count"] == 0
-
-    # Test MicroF1
-    opt_micro = OptimalConfidenceThreshold(crit=MicroF1)
-    thr_micro, count_micro = opt_micro.compute(df, verbose=0)
-    assert count_micro == 4
-    assert 0.0 <= thr_micro <= 1.0
-
-
-def test_routing_macro_balanced_f1_uses_generic_fallback():
-    labels = ["a", "b", "c", "a", "b", "c"]
-    preds = ["a", "b", "b", "a", "c", "c"]
-    confs = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4]
-    df = _make_df(labels, preds, confs)
-
-    opt_balanced = OptimalConfidenceThreshold(crit=MacroBalancedF1, breaks=6, depth=2)
-    thr, count = opt_balanced.compute(df, verbose=0)
-    assert count == len(labels)
-    assert 0.0 <= thr <= 1.0
-
-
-def test_routing_custom_f1_subclass_fallback():
-    class CustomF1(MacroF1):
-        def compute_all_groups(self, df, *args, **kwargs):
-            # Custom overridden logic
-            res = super().compute_all_groups(df, *args, **kwargs)
-            return {k: (v * 0.5, w) for k, (v, w) in res.items()}
-
-    labels = ["a", "b", "c"]
-    preds = ["a", "b", "c"]
-    confs = [0.9, 0.8, 0.7]
-    df = _make_df(labels, preds, confs)
-
-    opt = OptimalConfidenceThreshold(crit=CustomF1, breaks=6, depth=2)
-    thr, count = opt.compute(df, verbose=0)
-    assert count == 3
-    assert 0.0 <= thr <= 1.0
-
-
-def test_routing_custom_unrelated_metric_fallback():
-    labels = ["a", "b", "c"]
-    preds = ["a", "b", "c"]
-    confs = [0.9, 0.8, 0.7]
-    df = _make_df(labels, preds, confs)
-
-    opt = OptimalConfidenceThreshold(crit=MacroAccuracy, breaks=6, depth=2)
-    thr, count = opt.compute(df, verbose=0)
-    assert count == 3
-    assert 0.0 <= thr <= 1.0
-
-
-def test_routing_macro_override_arg():
-    labels = ["a", "b", "c", "a"]
-    preds = ["a", "b", "c", "b"]
-    confs = [0.9, 0.8, 0.7, 0.6]
-    df = _make_df(labels, preds, confs)
-
-    opt = OptimalConfidenceThreshold(crit=MacroF1)
-    # Passing macro=False should execute micro mode on fast curve
-    thr, count = opt.compute(df, macro=False, verbose=0)
-    assert count == 4
-    assert 0.0 <= thr <= 1.0
-
-
-# =====================================================================
-# 3. Connected plateau selection tests
-# =====================================================================
-
-
-def test_plateau_single_connected_component():
-    positions = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-    values = np.array([0.5, 0.89, 0.90, 0.89, 0.6])
-    idx = select_connected_plateau_index(positions, values, eps=0.02, target_fn=max)
-    # Eligible component: [0.2, 0.3, 0.4] -> center is 0.3 -> index 2
-    assert idx == 2
-
-
-def test_plateau_two_components_separated_by_inferior_valley():
-    # Two plateaus near 0.90, separated by 0.5 at pos=0.5
-    # Component A: pos [0.1, 0.2, 0.3], vals [0.89, 0.90, 0.89], width = 0.2
-    # Component B: pos [0.7, 0.8], vals [0.90, 0.90], width = 0.1
-    positions = np.array([0.1, 0.2, 0.3, 0.5, 0.7, 0.8])
-    values = np.array([0.89, 0.90, 0.89, 0.50, 0.90, 0.90])
-
-    idx = select_connected_plateau_index(positions, values, eps=0.02, target_fn=max)
-    # Wider component A (width 0.2 vs 0.1) should be selected!
-    # Center of A is 0.2 -> index 1
-    assert idx == 1
-
-
-def test_plateau_tie_breaking_higher_coverage():
-    # Two equal-width components with equal global maxima
-    # Component A: pos [0.1, 0.3], vals [0.95, 0.95], width = 0.2
-    # Component B: pos [0.7, 0.9], vals [0.95, 0.95], width = 0.2
-    positions = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
-    values = np.array([0.95, 0.95, 0.60, 0.95, 0.95])
-
-    idx = select_connected_plateau_index(positions, values, eps=0.01, target_fn=max)
-    # Tied width: prefer higher coverage (smaller position value) -> Component A!
-    # Center of A is 0.2 -> nearest are 0.1 (idx 0) or 0.3 (idx 1), tie-break prefers smaller pos (idx 0)
-    assert idx in (0, 1)
-    assert positions[idx] < 0.5
-
-
-def test_plateau_descending_positions_handling():
-    # Test that rejection-rate coordinates in descending order are handled correctly
-    positions = np.array([0.8, 0.7, 0.5, 0.3, 0.2, 0.1])
-    values = np.array([0.90, 0.90, 0.50, 0.89, 0.90, 0.89])
-    idx = select_connected_plateau_index(positions, values, eps=0.02, target_fn=max)
-    # Component around [0.3, 0.2, 0.1] has width 0.2 vs [0.8, 0.7] width 0.1
-    # Center is 0.2 -> position 0.2 is at original index 4
-    assert idx == 4
-
-
-def test_plateau_optimum_at_endpoints():
-    positions = np.array([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
-    values = np.array([0.95, 0.80, 0.70, 0.60, 0.50, 0.40])
-    idx = select_connected_plateau_index(positions, values, eps=0.05, target_fn=max)
-    assert idx == 0
-
-    values_right = np.array([0.40, 0.50, 0.60, 0.70, 0.80, 0.95])
-    idx_right = select_connected_plateau_index(positions, values_right, eps=0.05, target_fn=max)
-    assert idx_right == 5
-
-
-def test_find_connected_component_bounds():
-    positions = np.array([0.1, 0.2, 0.3, 0.5, 0.7, 0.8])
-    values = np.array([0.89, 0.90, 0.89, 0.50, 0.90, 0.90])
-    mi, ma = find_connected_component_bounds(positions, values, eps=0.02, target_fn=max)
-    assert mi == pytest.approx(0.1)
-    assert ma == pytest.approx(0.3)
-
-
-# =====================================================================
-# 4. Numerically stable threshold calculation tests
-# =====================================================================
-
-
-def test_stable_threshold_interval_midpoint():
-    confs = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
-    # Accept observations with conf >= 0.5
-    accepted_mask = confs >= 0.5
-    thr = compute_stable_threshold(confs, accepted_mask)
-    # Interval is (0.3, 0.5] -> midpoint 0.4
-    assert thr == pytest.approx(0.4)
-    assert np.array_equal(confs >= thr, accepted_mask)
-
-
-def test_stable_threshold_all_accepted():
-    confs = np.array([0.2, 0.4, 0.6, 0.8])
-    accepted_mask = np.ones(4, dtype=bool)
-    thr = compute_stable_threshold(confs, accepted_mask)
-    # Should preserve observed minimum confidence
-    assert thr == pytest.approx(0.2)
-    assert np.array_equal(confs >= thr, accepted_mask)
-
-
-def test_stable_threshold_none_accepted():
-    confs = np.array([0.2, 0.4, 0.6, 0.8])
-    accepted_mask = np.zeros(4, dtype=bool)
-    thr = compute_stable_threshold(confs, accepted_mask)
-    assert thr >= 0.8
-    assert np.array_equal(confs >= thr, accepted_mask)
-
-
-def test_stable_threshold_adjacent_floats_collapse():
-    # Construct adjacent floating point numbers
-    c_rej = 0.5
-    c_acc = np.nextafter(c_rej, np.inf)
-    confs = np.array([c_rej, c_acc])
-    accepted_mask = np.array([False, True])
-    thr = compute_stable_threshold(confs, accepted_mask)
-    assert confs[0] < thr <= confs[1]
-    assert np.array_equal(confs >= thr, accepted_mask)
-
-
-def test_stable_threshold_zero_and_one_confidences():
-    confs = np.array([0.0, 0.0, 1.0, 1.0])
-    accepted_mask = np.array([False, False, True, True])
-    thr = compute_stable_threshold(confs, accepted_mask)
-    assert thr == pytest.approx(0.5)
-    assert np.array_equal(confs >= thr, accepted_mask)
-
-
-# =====================================================================
-# 5. Public API, Multi-level, and Regression tests
-# =====================================================================
-
-
-def test_optimal_confidence_threshold_multi_level():
-    labels = ["a", "b", "a", "b", "a", "b"]
-    preds = ["a", "b", "b", "a", "a", "b"]
-    confs = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4]
-    levels = [0, 0, 0, 1, 1, 1]
-    df = _make_df(labels, preds, confs, levels=levels)
-
-    opt = OptimalConfidenceThreshold(crit=MacroF1)
-    res = opt(df)
-    assert isinstance(res, dict)
-    assert 0 in res and 1 in res
-    for lvl in [0, 1]:
-        thr = res[lvl]
-        assert isinstance(thr, float)
-        assert 0.0 <= thr <= 1.0
-
-
-def test_optimal_confidence_threshold_empty_dataframe():
-    df = MetricDF(
+    return MetricDF(
         {
-            "instance_id": np.empty(0, dtype=np.int64),
-            "filename": np.empty(0, dtype=object),
-            "level": np.empty(0, dtype=np.int64),
-            "label": np.empty(0, dtype=object),
-            "prediction": np.empty(0, dtype=object),
-            "confidence": np.empty(0, dtype=np.float64),
-            "threshold": np.empty(0, dtype=np.float64),
+            "instance_id": np.arange(n, dtype=np.int64),
+            "filename": np.array([f"f_{i}.png" for i in range(n)], dtype=object),
+            "level": np.zeros(n, dtype=np.int64) if levels is None else np.asarray(levels, dtype=np.int64),
+            "label": np.asarray(labels, dtype=object),
+            "prediction": np.asarray(preds, dtype=object),
+            "confidence": np.asarray(confs, dtype=np.float64),
+            "threshold": np.zeros(n, dtype=np.float64),
         }
     )
-    opt = OptimalConfidenceThreshold(crit=MacroF1)
-    res = opt(df)
-    assert isinstance(res, dict)
-    assert len(res) == 0
+
+
+def _subset(df, indices):
+    """Rebuild through validation, without copying stale derived fields."""
+    data = df.data.to_dict()
+    names = ("instance_id", "filename", "level", "label", "prediction", "confidence")
+    selected = {name: np.asarray(data[name])[indices] for name in names}
+    selected["threshold"] = np.zeros(len(indices), dtype=np.float64)
+    return MetricDF(selected)
+
+
+def _scalar_metric(metric_type):
+    metric = metric_type()
+    metric.is_per_level = False
+    return metric
+
+
+def _assert_curve_matches_metrics(df, macro, max_states=None):
+    """Use public threshold application and module metrics as the oracle.
+
+    Do not manually construct prediction_made/correct or bypass validation.
+    Threshold counts are derived independently from the input confidences.
+    """
+    confs = np.asarray(df.confidence, dtype=np.float64)
+    thresholds, counts = np.unique(confs, return_counts=True)
+    thresholds = thresholds[::-1]
+    accepted = np.cumsum(counts[::-1])
+    curve = compute_f1_threshold_curve(df, macro=macro)
+
+    for name in ("thresholds", "accepted_counts", "rejection_rates", "values"):
+        assert getattr(curve, name).shape == thresholds.shape, name
+    np.testing.assert_array_equal(curve.thresholds, thresholds)
+    np.testing.assert_array_equal(curve.accepted_counts, accepted)
+    np.testing.assert_allclose(curve.rejection_rates, 1 - accepted / len(df), rtol=0, atol=1e-15)
+    assert np.all(np.isfinite(curve.values))
+    assert np.all((curve.values >= -SCORE_ATOL) & (curve.values <= 1 + SCORE_ATOL))
+    assert np.all(np.diff(curve.thresholds) < 0)
+    assert np.all(np.diff(curve.rejection_rates) < 0)
+
+    states = np.arange(len(thresholds))
+    if max_states is not None and len(states) > max_states:
+        states = np.unique(np.linspace(0, len(states) - 1, max_states, dtype=int))
+    metric = _scalar_metric(MacroF1 if macro else MicroF1)
+    for i in states:
+        thresholded = df.data.with_threshold(float(thresholds[i]), recompute_prediction_level=False)
+        expected = float(metric(thresholded))
+        assert np.isfinite(expected), f"Undefined oracle F1 at threshold={thresholds[i]}"
+        assert curve.values[i] == pytest.approx(expected, rel=0, abs=SCORE_ATOL), (
+            f"macro={macro}, threshold={thresholds[i]}, accepted={accepted[i]}"
+        )
+    return curve
+
+
+@pytest.mark.parametrize("macro", F1_CASES)
+@pytest.mark.parametrize(
+    "labels,preds,confs",
+    [
+        pytest.param(
+            ["cat", "cat", "dog", "dog", "bird", "bird", "cat"],
+            ["cat", "dog", "dog", "bird", "bird", "bird", "cat"],
+            [0.95, 0.85, 0.75, 0.65, 0.55, 0.45, 0.35],
+            id="basic",
+        ),
+        pytest.param(
+            ["cat", "dog", "fish", "dog", "cat", "cat"],
+            ["cat", "fox", "fox", "dog", "fox", "cat"],
+            [1, 0.8, 0.8, 0.5, 0, 0],
+            id="unmatched-classes-ties-endpoints",
+        ),
+        pytest.param(
+            ["a", "b", "c", "a", "b", "c", "a", "b"],
+            ["a", "a", "c", "b", "b", "c", "a", "c"],
+            [0.8, 0.8, 0.8, 0.5, 0.5, 0.2, 0.2, 0.2],
+            id="ties",
+        ),
+        pytest.param(["a", "b", "c"], ["a", "b", "a"], [0.7, 0.7, 0.7], id="all-tied"),
+        pytest.param(["a", "a"], ["b", "b"], [0.9, 0.1], id="all-wrong"),
+        pytest.param(["a"], ["a"], [1], id="singleton-correct"),
+        pytest.param(["a"], ["b"], [0], id="singleton-wrong"),
+    ],
+)
+def test_curve_matches_public_metrics(macro, labels, preds, confs):
+    _assert_curve_matches_metrics(_make_df(labels, preds, confs), macro)
+
+
+@pytest.mark.parametrize("macro", F1_CASES)
+@pytest.mark.parametrize("seed", [42, 123, 999, 2026])
+def test_curve_randomized_long_tail(macro, seed):
+    rng = np.random.default_rng(seed)
+    classes = np.array([f"cls_{i}" for i in range(12)])
+    probs = np.exp(-np.arange(12) / 3)
+    labels = rng.choice(classes, size=150, p=probs / probs.sum())
+    guesses = rng.choice(np.append(classes, ["extra_1", "extra_2"]), size=150)
+    preds = np.where(rng.random(150) < 0.7, labels, guesses)
+    confs = rng.choice(np.r_[0, 0.1, 0.25, 0.5, 0.75, 0.9, 1, rng.uniform(size=20)], size=150)
+    _assert_curve_matches_metrics(_make_df(labels, preds, confs), macro)
+
+
+@pytest.mark.parametrize("macro", F1_CASES)
+def test_curve_abstentions_reduce_recall(macro):
+    # One class, two correct predictions: retaining one gives P=1, R=1/2, F1=2/3.
+    curve = compute_f1_threshold_curve(_make_df(["a", "a"], ["a", "a"], [0.9, 0.1]), macro=macro)
+    np.testing.assert_allclose(curve.values, [2 / 3, 1], rtol=0, atol=1e-12)
+
+
+@pytest.mark.parametrize("macro", F1_CASES)
+def test_curve_empty(macro):
+    curve = compute_f1_threshold_curve(_make_df([], [], []), macro=macro)
+    for name in ("thresholds", "accepted_counts", "rejection_rates", "values"):
+        assert getattr(curve, name).shape == (0,)
+
+
+# Expected positions/bounds are hand-written, not derived with the helper under test.
+@pytest.mark.parametrize("target_fn", [max, min, np.max, np.min])
+@pytest.mark.parametrize("order", ["forward", "reverse", "shuffle"])
+@pytest.mark.parametrize(
+    "positions,values,eps,expected,bounds",
+    [
+        pytest.param(
+            [0, 0.125, 0.25, 0.5, 0.75],
+            [0.9, 0.5, 0.89, 0.89, 0.89],
+            0.02,
+            0.5,
+            (0.25, 0.75),
+            id="wider-component-without-optimum",
+        ),
+        pytest.param(
+            [0, 0.0625, 0.125, 0.25, 0.5, 1],
+            [1, 1, 1, 0, 0.99, 0.99],
+            0.02,
+            0.5,
+            (0.5, 1),
+            id="width-not-point-count",
+        ),
+        pytest.param(
+            [0.1, 0.3, 0.5, 0.7, 0.9],
+            [0.95, 0.95, 0.6, 0.95, 0.95],
+            0.01,
+            0.1,
+            (0.1, 0.3),
+            id="decimal-component-and-midpoint-ties",
+        ),
+        pytest.param([0.1, 0.3], [1, 1], 0, 0.1, (0.1, 0.3), id="decimal-midpoint-tie"),
+        pytest.param(
+            [0, 0.25, 0.5, 1], [1, 0.75, 0.75, 0], 0.25, 0.25, (0, 0.5), id="inclusive-epsilon-boundary"
+        ),
+        pytest.param([0, 0.25, 0.5], [1, 1 - 1e-8, 0], 0, 0, (0, 0), id="zero-epsilon"),
+        pytest.param([0, 0.5, 1], [0, 0.5, 1], 0, 1, (1, 1), id="right-endpoint"),
+        pytest.param([0.25], [0.8], 0.01, 0.25, (0.25, 0.25), id="singleton"),
+        pytest.param([0, 0.25, 1], [1, 1, 1], 0, 0.25, (0, 1), id="nearest-evaluated-midpoint"),
+    ],
+)
+def test_plateau_contract(positions, values, eps, expected, bounds, order, target_fn):
+    positions = np.array(positions, dtype=float)
+    values = np.array(values, dtype=float)
+    if target_fn is min or target_fn is np.min:
+        values = -values
+    permutation = np.arange(len(positions))
+    if order == "reverse":
+        permutation = permutation[::-1]
+    elif order == "shuffle":
+        permutation = np.random.default_rng(17).permutation(permutation)
+    positions, values = positions[permutation], values[permutation]
+    idx = select_connected_plateau_index(positions, values, eps=eps, target_fn=target_fn, extend=False)
+    assert isinstance(idx, int)
+    assert idx == int(np.flatnonzero(positions == expected)[0])
+    assert (
+        find_connected_component_bounds(positions, values, eps=eps, target_fn=target_fn, extend=False)
+        == bounds
+    )
+
+
+@pytest.mark.parametrize("selector", [select_connected_plateau_index, find_connected_component_bounds])
+@pytest.mark.parametrize(
+    "positions,values,eps,target_fn,message",
+    [
+        ([], [], 0.01, max, "empty"),
+        ([0.1], [], 0.01, max, "equal length"),
+        ([[0.1]], [0.5], 0.01, max, "one-dimensional"),
+        ([0.1], [[0.5]], 0.01, max, "one-dimensional"),
+        ([0.1, 0.1], [0.5, 0.6], 0.01, max, "unique"),
+        ([np.nan], [0.5], 0.01, max, "finite"),
+        ([np.inf], [0.5], 0.01, max, "finite"),
+        ([0.1], [np.nan], 0.01, max, "finite"),
+        ([0.1], [np.inf], 0.01, max, "finite"),
+        ([0.1], [0.5], -0.01, max, "eps"),
+        ([0.1], [0.5], np.nan, max, "eps"),
+        ([0.1], [0.5], np.inf, max, "eps"),
+        ([0.1], [0.5], 0.01, np.mean, "target_fn"),
+    ],
+)
+def test_plateau_validation(selector, positions, values, eps, target_fn, message):
+    with pytest.raises(ValueError, match=message):
+        selector(positions, values, eps=eps, target_fn=target_fn)
+
+
+@pytest.fixture
+def routing_df():
+    return _make_df(
+        ["a", "b", "c", "a", "b", "c"], ["a", "b", "b", "a", "c", "c"], [1, 0.8, 0.7, 0.6, 0.5, 0.4]
+    )
+
+
+def _optimizer_module():
+    # Patch the name actually resolved by compute(), even if the class is re-exported.
+    return importlib.import_module(OptimalConfidenceThreshold.__module__)
+
+
+@pytest.mark.parametrize(
+    "metric_type,kwargs,expected_macro",
+    [
+        (MacroF1, {}, True),
+        (MicroF1, {}, False),
+        (MacroF1, {"macro": False}, False),
+    ],
+)
+def test_fast_routing(monkeypatch, routing_df, metric_type, kwargs, expected_macro):
+    module = _optimizer_module()
+    curve_spy = Mock(wraps=module.compute_f1_threshold_curve)
+    monkeypatch.setattr(module, "compute_f1_threshold_curve", curve_spy)
+
+    def forbidden_metric_call(*args, **kwargs):
+        pytest.fail("Fast search called the generic criterion")
+
+    monkeypatch.setattr(metric_type, "__call__", forbidden_metric_call)
+    threshold, count = OptimalConfidenceThreshold(crit=metric_type).compute(routing_df, verbose=0, **kwargs)
+    assert count == len(routing_df)
+    curve_spy.assert_called_once()
+    assert curve_spy.call_args.kwargs["macro"] == expected_macro
+
+
+class ScaledF1(MacroF1):
+    def compute_all_groups(self, df, *args, **kwargs):
+        return {k: (v * 0.5, w) for k, (v, w) in super().compute_all_groups(df, *args, **kwargs).items()}
+
+
+@pytest.mark.parametrize("metric_type", [MacroBalancedF1, MacroAccuracy, ScaledF1])
+def test_generic_routing(monkeypatch, routing_df, metric_type):
+    def forbidden_curve(*args, **kwargs):
+        pytest.fail("Unsupported criterion entered the fast path")
+
+    monkeypatch.setattr(_optimizer_module(), "compute_f1_threshold_curve", forbidden_curve)
+
+    calls = []
+    original_call = metric_type.__call__
+
+    def tracked_call(self, *args, **kwargs):
+        calls.append(None)
+        return original_call(self, *args, **kwargs)
+
+    monkeypatch.setattr(metric_type, "__call__", tracked_call)
+
+    _, count = OptimalConfidenceThreshold(crit=metric_type, breaks=6, depth=2).compute(routing_df, verbose=0)
+
+    assert count == len(routing_df)
+    assert calls, "Generic criterion was never evaluated"
+
+
+@pytest.mark.parametrize(
+    "use_quantiles,expected",
+    [
+        pytest.param(True, 0.6875, id="central-rate-gap-midpoint"),
+        pytest.param(False, 0.5, id="full-confidence-interval-midpoint"),
+    ],
+)
+def test_fast_path_coordinate_selection(use_quantiles, expected):
+    confs = [0, 0.125, 0.625, 0.75, 0.875, 0.9375, 1]
+    df = _make_df(["a"] * 7, ["a"] * 7, confs)
+
+    threshold, count = OptimalConfidenceThreshold(use_quantiles=use_quantiles, eps=1).compute(df, verbose=0)
+
+    # All states qualify.
+    # Quantile mode selects the state at 0.75, valid on (0.625, 0.75].
+    # Confidence mode selects the midpoint of the entire interval [0, 1].
+    assert threshold == expected
+    assert count == 7
+
+
+@pytest.mark.parametrize(
+    "use_quantiles,expected",
+    [
+        pytest.param(True, 0.75, id="quantile-midpoint"),
+        pytest.param(False, 0.5, id="confidence-midpoint"),
+    ],
+)
+def test_sparse_path_maps_search_midpoint(use_quantiles, expected):
+    df = _make_df(["a"] * 5, ["a"] * 5, [0, 0.25, 0.75, 0.875, 1])
+
+    threshold, count = OptimalConfidenceThreshold(
+        crit=ScaledF1,
+        use_quantiles=use_quantiles,
+        eps=1,
+        breaks=4,
+        depth=1,
+    ).compute(df, verbose=0)
+
+    # The entire search interval qualifies, so its center is u=0.5.
+    # This is already evaluated by the initial grid.
+    assert threshold == expected
+    assert count == 5
+
+
+@pytest.mark.parametrize("target", [max, min], ids=["maximize", "minimize"])
+@pytest.mark.parametrize("use_quantiles", [True, False])
+@pytest.mark.parametrize(
+    "proposal_score,expected",
+    [
+        pytest.param(0.89, 0.25, id="accept-near-optimal-midpoint"),
+        pytest.param(0.95, 0.25, id="accept-new-optimum"),
+        pytest.param(0.50, 0.50, id="reject-inferior-midpoint"),
+        pytest.param(np.nan, 0.50, id="reject-undefined-midpoint"),
+    ],
+)
+def test_sparse_midpoint_proposal(monkeypatch, target, use_quantiles, proposal_score, expected):
+    # Both coordinate modes map this uniform grid identically.
+    df = _make_df(["a"] * 5, ["a"] * 5, [0, 0.25, 0.5, 0.75, 1])
+
+    # Initial evaluations: u=0, 0.5, 1.
+    # Only 0.5 qualifies. Extending its component left gives (0, 0.5],
+    # whose proposed midpoint is 0.25.
+    scores = {0.0: 0.1, 0.5: 0.9, 1.0: 0.1, 0.25: proposal_score}
+    evaluated = []
+
+    def controlled_score(self, data, **kwargs):
+        tau = float(np.asarray(data.threshold).flat[0])
+        evaluated.append(tau)
+        score = scores[tau]
+        return score if target is max else -score
+
+    def forbidden_curve(*args, **kwargs):
+        pytest.fail("Proposal test unexpectedly entered the fast path")
+
+    monkeypatch.setattr(ScaledF1, "__call__", controlled_score)
+    monkeypatch.setattr(_optimizer_module(), "compute_f1_threshold_curve", forbidden_curve)
+
+    opt = OptimalConfidenceThreshold(
+        crit=ScaledF1,
+        use_quantiles=use_quantiles,
+        breaks=2,
+        depth=1,
+        eps=0.02,
+    )
+    opt.target = target
+
+    threshold, count = opt.compute(df, verbose=0)
+
+    assert evaluated == [0.0, 0.5, 1.0, 0.25]
+    assert threshold == expected
+    assert count == 5
+
+
+def test_multilevel_dispatch_matches_independent_levels():
+    df = _make_df(
+        ["a", "b", "a", "b", "a", "b"],
+        ["a", "b", "b", "a", "a", "b"],
+        [0.9, 0.8, 0.7, 0.6, 0.5, 0.4],
+        levels=[0, 0, 0, 1, 1, 1],
+    )
+    actual = OptimalConfidenceThreshold()(df, verbose=0)
+    assert isinstance(actual, dict)
+    assert set(actual) == {0, 1}
+    for level in (0, 1):
+        subset = _subset(df, np.flatnonzero(np.asarray(df.level) == level))
+        expected, count = OptimalConfidenceThreshold().compute(subset, verbose=0)
+        assert count == 3
+        assert isinstance(actual[level], float)
+        assert actual[level] == expected
+
+
+def test_empty_public_and_compute_apis():
+    df = _make_df([], [], [])
+    assert OptimalConfidenceThreshold()(df, verbose=0) == {}
+    threshold, count = OptimalConfidenceThreshold().compute(df, verbose=0)
+    assert count == 0
+    assert np.isnan(threshold)
+
+
+@pytest.mark.parametrize("filename_base", EXAMPLE_FILES)
+@pytest.mark.parametrize("macro", F1_CASES)
+def test_example_threshold_equivalence_and_reproducibility(examples_dir, filename_base, macro):
+    path = examples_dir / f"{filename_base}.csv.zip"
+    assert path.is_file(), f"Missing test input: {path}"
+    df = MetricDF.from_source(path)
+    assert len(df) > 0
+    levels = np.asarray(df.level)
+    for level in np.unique(levels):
+        indices = np.flatnonzero(levels == level)
+        rng = np.random.default_rng(2026)
+        if len(indices) > 256:
+            indices = np.sort(rng.choice(indices, size=256, replace=False))
+        subset = _subset(df, indices)
+        _assert_curve_matches_metrics(subset, macro, max_states=17)
+        permutation = rng.permutation(len(subset))
+        shuffled = _subset(subset, permutation)
+        for use_quantiles in (True, False):
+            kwargs = dict(crit=MacroF1 if macro else MicroF1, use_quantiles=use_quantiles, eps=0.01)
+            expected = OptimalConfidenceThreshold(**kwargs).compute(subset, verbose=0)
+            repeated = OptimalConfidenceThreshold(**kwargs).compute(subset, verbose=0)
+            reordered = OptimalConfidenceThreshold(**kwargs).compute(shuffled, verbose=0)
+            assert repeated == expected, (filename_base, level, macro, use_quantiles)
+            assert reordered == expected, (filename_base, level, macro, use_quantiles)
+
+
+@pytest.mark.parametrize("rates", [None, [0.0, 0.5]])
+@pytest.mark.parametrize("thresholds", [[2.0, 3.0], [float("nan"), 0.5], [0.5, 0.5]])
+def test_threshold_validation_is_shared_across_coordinates(rates, thresholds):
+    from mini_metrics.helpers import select_connected_plateau_threshold
+
+    with pytest.raises(ValueError):
+        select_connected_plateau_threshold(thresholds, [1.0, 0.0], rejection_rates=rates)
+
+
+def test_main_preserves_positional_precision_and_verbosity():
+    metrics = importlib.import_module("mini_metrics.metrics")
+    import inspect
+
+    bound = inspect.signature(metrics.main).bind(
+        [], None, None, None, False, None, False, False, None, None, False, None, None, 6, 0, eps=0.05
+    )
+    assert bound.arguments["precision"] == 6
+    assert bound.arguments["verbose"] == 0
+    assert bound.arguments["eps"] == 0.05

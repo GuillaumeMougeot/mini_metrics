@@ -22,7 +22,7 @@ def first_nonzero_ordered(mask: np.ndarray, arr: np.ndarray) -> int:
 def group_arr(arr: np.ndarray):
     if len(arr) == 0:
         return []
-    inverse = np.argsort(arr)
+    inverse = np.argsort(arr, kind="stable")
     sorted_arr = arr[inverse]
     split_indices = np.flatnonzero(np.diff(sorted_arr)) + 1
     groups = np.split(inverse, split_indices)
@@ -34,7 +34,7 @@ def group_indices(arr: np.ndarray | Sequence[Any]) -> dict[Any, np.ndarray]:
     arr = np.asarray(arr)
     if len(arr) == 0:
         return {}
-    order = np.argsort(arr, kind="mergesort")
+    order = np.argsort(arr, kind="stable")
     sorted_arr = arr[order]
     diffs = np.flatnonzero(sorted_arr[:-1] != sorted_arr[1:]) + 1
     starts = np.concatenate(([0], diffs))

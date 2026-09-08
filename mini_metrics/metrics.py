@@ -5,7 +5,6 @@ import json
 import os
 import re
 from collections import OrderedDict
-from collections.abc import Callable, Iterable
 from itertools import chain
 from math import isfinite
 from pathlib import Path
@@ -15,6 +14,7 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 from tqdm.auto import tqdm
 
+from mini_metrics import DEFAULT_OPT_EPS
 from mini_metrics.abstract import (
     AveragedMetric,
     MacroMetric,
@@ -26,7 +26,6 @@ from mini_metrics.helpers import (
     ThresholdCurve,
     apply_macro_weight,
     compute_f1_threshold_curve,
-    compute_stable_threshold,
     df_from_dict,
     filter_df,
     find_connected_component_bounds,
@@ -35,6 +34,7 @@ from mini_metrics.helpers import (
     retry_with_kwargs,
     round_dict,
     select_connected_plateau_index,
+    select_connected_plateau_threshold,
 )
 from mini_metrics.hierarchical import (
     MacroRankAccuracy,
@@ -369,12 +369,12 @@ class ConfidenceStats(Metric[dict[str, float]]):
 class OptimalConfidenceThreshold(Metric):
     name: str = "optimal_confidence_threshold"
     crit: type[Metric[float]]
-    target: Callable[[Iterable[float]], float] = max
     columns = (
         *(set(COLUMNS) - set(OPTIONAL_COLUMNS)),
         "prediction_level",
         "known_label",
     )
+    target = max
 
     def __init__(
         self,
@@ -382,7 +382,8 @@ class OptimalConfidenceThreshold(Metric):
         use_quantiles: bool = True,
         breaks: int = 15,
         depth: int = 3,
-        eps: float = 1e-2,
+        eps: float = DEFAULT_OPT_EPS,
+        naive: bool = False,
         *args,
         **kwargs,
     ):
@@ -391,6 +392,7 @@ class OptimalConfidenceThreshold(Metric):
         self.breaks = breaks
         self.depth = depth
         self.eps = eps
+        self.naive = naive
         super().__init__(*args, **kwargs)
 
     def compute(self, df: MetricDF, verbose: int = 1, **kwargs) -> tuple[float, int]:
@@ -415,16 +417,16 @@ class OptimalConfidenceThreshold(Metric):
         if is_fast_eligible:
             macro_arg = kwargs.get("macro", getattr(crit_inst, "macro", True))
             curve = compute_f1_threshold_curve(base_df_data, macro=macro_arg)
+
             if len(curve.thresholds) > 0:
-                best_idx = select_connected_plateau_index(
-                    positions=curve.rejection_rates,
+                best_tau = select_connected_plateau_threshold(
+                    thresholds=curve.thresholds,
                     values=curve.values,
                     eps=self.eps,
                     target_fn=self.target,
+                    rejection_rates=curve.rejection_rates if self.use_quantiles else None,
+                    naive=self.naive,
                 )
-                selected_boundary = curve.thresholds[best_idx]
-                accepted_mask = confs >= selected_boundary
-                best_tau = compute_stable_threshold(confs, accepted_mask)
                 return best_tau, n_samples
 
         # Generic hierarchical search fallback
@@ -461,7 +463,7 @@ class OptimalConfidenceThreshold(Metric):
                 eval_u = np.array(list(res.keys()), dtype=np.float64)
                 eval_vals = np.array(list(res.values()), dtype=np.float64)
                 mi, ma = find_connected_component_bounds(
-                    eval_u, eval_vals, eps=self.eps, target_fn=self.target
+                    eval_u, eval_vals, eps=self.eps, target_fn=self.target, naive=self.naive
                 )
 
                 if mi == smi and ma == sma:
@@ -472,28 +474,25 @@ class OptimalConfidenceThreshold(Metric):
                     break
                 smi, sma = nsmi, nsma
 
-        eval_u = np.array(list(res.keys()), dtype=np.float64)
-        eval_vals = np.array(list(res.values()), dtype=np.float64)
-        mi, ma = find_connected_component_bounds(eval_u, eval_vals, eps=self.eps, target_fn=self.target)
-        u_center = round(float((mi + ma) / 2.0), 7)
-        if u_center not in res:
-            evaluate(u_center)
+        positions = np.array(list(res.keys()), dtype=np.float64)
+        values = np.array(list(res.values()), dtype=np.float64)
 
-        # Recompute after evaluating generic midpoint
-        eval_u = np.array(list(res.keys()), dtype=np.float64)
-        eval_vals = np.array(list(res.values()), dtype=np.float64)
-        best_u_idx = select_connected_plateau_index(
-            positions=eval_u,
-            values=eval_vals,
+        mi, ma = find_connected_component_bounds(
+            positions, values, eps=self.eps, target_fn=self.target, extend="left", naive=self.naive
+        )
+        midpoint = round((mi + ma) / 2.0, 7)
+        value = evaluate(midpoint)
+        if np.isfinite(value) and abs(value - self.target(res.values())) <= self.eps + 1e-12:
+            return u_to_tau(midpoint), n_samples
+
+        best_idx = select_connected_plateau_index(
+            positions=positions,
+            values=values,
             eps=self.eps,
             target_fn=self.target,
+            naive=self.naive,
         )
-        best_u = float(eval_u[best_u_idx])
-        raw_tau = u_to_tau(best_u)
-        accepted_mask = confs >= raw_tau
-        best_tau = compute_stable_threshold(confs, accepted_mask)
-
-        return best_tau, n_samples
+        return u_to_tau(positions[best_idx]), n_samples
 
 
 @overload
@@ -670,7 +669,7 @@ def evaluate_file(
     simple: bool | None = None,
     hierarchical: bool | None = None,
     use_quantiles: bool = True,
-    eps: float = 1e-2,
+    eps: float = DEFAULT_OPT_EPS,
     opt_crit: type[Metric[float]] = MacroBalancedF1,
     seed: int | None = None,
     verbose: int = 1,
@@ -767,6 +766,8 @@ def main(
     seed: int | None = None,
     precision: int | None = 6,
     verbose: int = 1,
+    *,
+    eps: float = DEFAULT_OPT_EPS,
 ):
     if files is None:
         files = [os.path.join(os.path.dirname(__file__), "demo.csv")]
@@ -809,6 +810,7 @@ def main(
                 simple=not all,
                 hierarchical=hierarchical,
                 seed=seed,
+                eps=eps,
                 verbose=verbose,
             )
 
@@ -959,6 +961,15 @@ def cli():
         default=6,
         required=False,
         help="Number of decimal places (digits of precision) to round float values to when saving results (default: 6). Set to -1 for full precision.",
+    )
+    parser.add_argument(
+        "--eps",
+        "--epsilon",
+        type=float,
+        default=DEFAULT_OPT_EPS,
+        required=False,
+        dest="eps",
+        help="Allowed absolute criterion loss from the best observed score during threshold selection.",
     )
     parser.add_argument(
         "-v",

@@ -1,0 +1,1 @@
+DEFAULT_OPT_EPS = 1e-2
