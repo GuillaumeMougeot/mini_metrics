@@ -1,0 +1,2115 @@
+{
+  "date": "2026-09-08",
+  "root": "dev",
+  "source_backup": "archive/bundles/pre-cleanup-sources-2026-09-08.zip",
+  "note": "Original SHA256 and size before path-only source edits; raw/results/archive payloads preserved.",
+  "files": [
+    {
+      "before": "epsilon_monte_carlo.ipynb",
+      "after": "notebooks/epsilon_monte_carlo.ipynb",
+      "bytes": 306930,
+      "sha256": "49a105cfb1d51e3f066a9d875393ce398c9241581fcad7e3caddf5fca3e6d2bd",
+      "current_sha256": "1193297995b81c0ab94a37d795ec9676a0d343211ded8df9c2f98eef049689c2",
+      "current_bytes": 307018
+    },
+    {
+      "before": "eval_at_many.sh",
+      "after": "archive/legacy/eval_at_many.sh",
+      "bytes": 348,
+      "sha256": "7cb8c694cff11baebfc8e31172b285751cf5af81106b1f2e85e80deb752526ea"
+    },
+    {
+      "before": "global_lepi_combinations.csv",
+      "after": "reference/global_lepi_combinations.csv",
+      "bytes": 271906,
+      "sha256": "e10406b5339dc022b58bc7b8a2518206901556b7709e9fb26c55d144e2389c89"
+    },
+    {
+      "before": "global_metrics.ipynb",
+      "after": "notebooks/global_metrics.ipynb",
+      "bytes": 112801,
+      "sha256": "c8a3b91c8a3f9da75e3576d8ad21b6f4a4113ab001e7785f113e3205323c7d9c",
+      "current_sha256": "94f850f962f0836bfb402393891db5be49414cb0e58a11f14bed593842d341ff",
+      "current_bytes": 113003
+    },
+    {
+      "before": "mm_0_0_5_lepi/autoregressive_global_lepi_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_5_lepi/autoregressive_global_lepi_mini_metric_metrics.csv",
+      "bytes": 770,
+      "sha256": "bec7fb377c67dd2fa70136ae4b294cb79f02b3592827e8895bd6126a90edae00"
+    },
+    {
+      "before": "mm_0_0_5_lepi/conditional_global_lepi_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_5_lepi/conditional_global_lepi_mini_metric_metrics.csv",
+      "bytes": 769,
+      "sha256": "44591e5fe94069c1569033ae0aa18bb51844d0e2bc85cfb5a7498bfccfb676d2"
+    },
+    {
+      "before": "mm_0_0_5_lepi/flat_global_lepi_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_5_lepi/flat_global_lepi_mini_metric_metrics.csv",
+      "bytes": 367,
+      "sha256": "f05f1b7afe36928f2affe1e85f365c6ed262b2504be96445696457f9f3c0e018"
+    },
+    {
+      "before": "mm_0_0_5_lepi/hierarchical_global_lepi_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_5_lepi/hierarchical_global_lepi_mini_metric_metrics.csv",
+      "bytes": 781,
+      "sha256": "6fdff6c06706c155d056e70809e7d509efda80f35c83b3843b93fc97fae0af97"
+    },
+    {
+      "before": "mm_0_0_5_lepi/independent_global_lepi_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_5_lepi/independent_global_lepi_mini_metric_metrics.csv",
+      "bytes": 777,
+      "sha256": "43b923997c4a56c8e08c7b371921e3be2cc02b76eabe86b98974051cf3e8c2f1"
+    },
+    {
+      "before": "mm_0_0_5_lepi/plots/Other.png",
+      "after": "archive/versioned_outputs/mm_0_0_5_lepi/plots/Other.png",
+      "bytes": 38719,
+      "sha256": "9773615fd75ed9941d3e550beeca2e6732a122e04872278dc1abe1660447ff91"
+    },
+    {
+      "before": "mm_0_0_5_lepi/plots/Standard_macro.png",
+      "after": "archive/versioned_outputs/mm_0_0_5_lepi/plots/Standard_macro.png",
+      "bytes": 50729,
+      "sha256": "a868981e4cb67d1389221bad2c5d73a26e0596435f24b8eb871faf65b58fbf3e"
+    },
+    {
+      "before": "mm_0_0_5_lepi/plots/Standard_micro.png",
+      "after": "archive/versioned_outputs/mm_0_0_5_lepi/plots/Standard_micro.png",
+      "bytes": 53792,
+      "sha256": "a857322db9deccd0d306760111a843a3c4f1c3ffd5ade055b5870f4bb66c1177"
+    },
+    {
+      "before": "mm_0_0_5_lepi/plots/Theils_U.png",
+      "after": "archive/versioned_outputs/mm_0_0_5_lepi/plots/Theils_U.png",
+      "bytes": 33129,
+      "sha256": "bc63d93b04bb2cd8ef25495307554a25462a0958f4353039e5d7cfb7fd001522"
+    },
+    {
+      "before": "mm_0_0_5_plant/autoregressive_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_5_plant/autoregressive_plantnet_mini_metric_metrics.csv",
+      "bytes": 1194,
+      "sha256": "e6b8e845af4826d20e10576949283a0a0cd550add378be949101366e59db4256"
+    },
+    {
+      "before": "mm_0_0_5_plant/conditional_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_5_plant/conditional_plantnet_mini_metric_metrics.csv",
+      "bytes": 1155,
+      "sha256": "db57dba32d347e9657973f01a13e8f8c56da7a8967c57efb94a657e30d0949ec"
+    },
+    {
+      "before": "mm_0_0_5_plant/flat_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_5_plant/flat_plantnet_mini_metric_metrics.csv",
+      "bytes": 356,
+      "sha256": "b60fd364421a61bb3721c3d1d169e9b3d2cd0c2359c34b64c437a2ab148bbcef"
+    },
+    {
+      "before": "mm_0_0_5_plant/hierarchical_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_5_plant/hierarchical_plantnet_mini_metric_metrics.csv",
+      "bytes": 1166,
+      "sha256": "14b47b77d6cec50c7bc3a9b70b92f9ae8daa8672ed6ea2429cd590bbcf8e540d"
+    },
+    {
+      "before": "mm_0_0_5_plant/independent_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_5_plant/independent_plantnet_mini_metric_metrics.csv",
+      "bytes": 1185,
+      "sha256": "2ad0d56623876f89936b45517e22dee1f49ab17c0a7d0f47b78626fd08ffa796"
+    },
+    {
+      "before": "mm_0_0_5_plant/plots/Other.png",
+      "after": "archive/versioned_outputs/mm_0_0_5_plant/plots/Other.png",
+      "bytes": 43492,
+      "sha256": "46f0512c31f2423846315f8482e916dfbe15a2cbb6835a7e76d3d1c90752961d"
+    },
+    {
+      "before": "mm_0_0_5_plant/plots/Standard_macro.png",
+      "after": "archive/versioned_outputs/mm_0_0_5_plant/plots/Standard_macro.png",
+      "bytes": 59569,
+      "sha256": "e16d9bde73c24eba6aec2dad39d897c88e124ce200909e73ba48692990894c43"
+    },
+    {
+      "before": "mm_0_0_5_plant/plots/Standard_micro.png",
+      "after": "archive/versioned_outputs/mm_0_0_5_plant/plots/Standard_micro.png",
+      "bytes": 58602,
+      "sha256": "0033ce6ac22be4eb9100fd783b8dbe8b74b8147453ed17f41f6205b1df2803d1"
+    },
+    {
+      "before": "mm_0_0_5_plant/plots/Theils_U.png",
+      "after": "archive/versioned_outputs/mm_0_0_5_plant/plots/Theils_U.png",
+      "bytes": 33403,
+      "sha256": "b46abe841610dc7346694fa1814d55660b2a1575e5f2c0262e9d5ff9d9bdbbd2"
+    },
+    {
+      "before": "mm_0_0_7_plant/autoregressive_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant/autoregressive_plantnet_mini_metric_metrics.csv",
+      "bytes": 2038,
+      "sha256": "e73fdc5552b5cd84a989fc8e3ce3cdcb2f4cff77e644cf80436666343d528f24"
+    },
+    {
+      "before": "mm_0_0_7_plant/conditional_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant/conditional_plantnet_mini_metric_metrics.csv",
+      "bytes": 2030,
+      "sha256": "c3cfda5f767923a7c80b4edda252a8a08dd549cfa75482bf09b448558c4cfb33"
+    },
+    {
+      "before": "mm_0_0_7_plant/flat_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant/flat_plantnet_mini_metric_metrics.csv",
+      "bytes": 2060,
+      "sha256": "2bb980170275ed02c83b1a38020ac517d8f58476f07fa9924bc4d5523018e125"
+    },
+    {
+      "before": "mm_0_0_7_plant/hierarchical_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant/hierarchical_plantnet_mini_metric_metrics.csv",
+      "bytes": 2062,
+      "sha256": "cde8f574347e09e0d33c18553dc52d2cfa7047911fdc63395ba83a12b56d81bb"
+    },
+    {
+      "before": "mm_0_0_7_plant/independent_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant/independent_plantnet_mini_metric_metrics.csv",
+      "bytes": 2050,
+      "sha256": "995987695f09b4474319cdce88922ddcb498988b16ecd63c47b14e92f4342cd7"
+    },
+    {
+      "before": "mm_0_0_7_plant/plots/Other.png",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant/plots/Other.png",
+      "bytes": 45428,
+      "sha256": "4f9c53c9e839e1db83f195cda2aae5ddafa58e51971d6abfee548049b018afe5"
+    },
+    {
+      "before": "mm_0_0_7_plant/plots/Rank_macro.png",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant/plots/Rank_macro.png",
+      "bytes": 67329,
+      "sha256": "6f0381d885c59eaf036817643611cce4ff30ff2cecd6855afb083dff68f3801b"
+    },
+    {
+      "before": "mm_0_0_7_plant/plots/Rank_micro.png",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant/plots/Rank_micro.png",
+      "bytes": 69392,
+      "sha256": "40baca038c328ab7ab889bc59d28d4038dd7c29cba452821712d1daf9c9677e2"
+    },
+    {
+      "before": "mm_0_0_7_plant/plots/Standard_macro.png",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant/plots/Standard_macro.png",
+      "bytes": 66961,
+      "sha256": "94e7033665a78882484c685cc85bc2a4f4f12dd3b2a2c407dcddbc1bb12ecba5"
+    },
+    {
+      "before": "mm_0_0_7_plant/plots/Standard_micro.png",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant/plots/Standard_micro.png",
+      "bytes": 66021,
+      "sha256": "1bbae53106a4c3e4462284bfeb73e7e9f604c4827efd5d68da7527b672cf754d"
+    },
+    {
+      "before": "mm_0_0_7_plant/plots/Theils_U.png",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant/plots/Theils_U.png",
+      "bytes": 35275,
+      "sha256": "37883656d33eab83f6666678cd7256f16fb20342689fc21eafca82f06d71e7fd"
+    },
+    {
+      "before": "mm_0_0_7_plant_v2/autoregressive_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_v2/autoregressive_plantnet_mini_metric_metrics.csv",
+      "bytes": 1813,
+      "sha256": "12948fae36f4b860f51578c44f5cdfb4934c6e3d1138071db84a2880655bafc6"
+    },
+    {
+      "before": "mm_0_0_7_plant_v2/conditional_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_v2/conditional_plantnet_mini_metric_metrics.csv",
+      "bytes": 1826,
+      "sha256": "a46c72fff886aa71589afa22a1fabae26e5349e2bb29ecfaaad024e0039ef48a"
+    },
+    {
+      "before": "mm_0_0_7_plant_v2/flat_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_v2/flat_plantnet_mini_metric_metrics.csv",
+      "bytes": 1603,
+      "sha256": "1a8b01898aadc121ece63b44e0995d067e498dafe33f34126d476c08da87af4a"
+    },
+    {
+      "before": "mm_0_0_7_plant_v2/hierarchical_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_v2/hierarchical_plantnet_mini_metric_metrics.csv",
+      "bytes": 1497,
+      "sha256": "2501fc9aedef882d2db36b4d4d1940c687f412f422f7c9c980bff252e6db1d5c"
+    },
+    {
+      "before": "mm_0_0_7_plant_v2/independent_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_v2/independent_plantnet_mini_metric_metrics.csv",
+      "bytes": 1384,
+      "sha256": "19f2abf7cda41da3945fa9fe02befe2b0b560ddfc6ad16c48c9721797e19b41c"
+    },
+    {
+      "before": "mm_0_0_7_plant_zero/autoregressive_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_zero/autoregressive_plantnet_mini_metric_metrics.csv",
+      "bytes": 1985,
+      "sha256": "75cd01fda6fe43604b507ee0e9faed69d2863c5bacd4880fcaed623241b91b33"
+    },
+    {
+      "before": "mm_0_0_7_plant_zero/conditional_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_zero/conditional_plantnet_mini_metric_metrics.csv",
+      "bytes": 1972,
+      "sha256": "12c53016e1f9454068adb9aed7a903d2ece80ef0419c52a1a4d802ea5c452fe7"
+    },
+    {
+      "before": "mm_0_0_7_plant_zero/flat_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_zero/flat_plantnet_mini_metric_metrics.csv",
+      "bytes": 1974,
+      "sha256": "d2b996d0e8cb85802ecf86d47f96cf5cdcf42f34b4de91b4c80d81798cfb876f"
+    },
+    {
+      "before": "mm_0_0_7_plant_zero/hierarchical_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_zero/hierarchical_plantnet_mini_metric_metrics.csv",
+      "bytes": 1974,
+      "sha256": "25fa82e60b7e6d3024d712ba82cf75ad46f1ef3c35be2e116a147089a273acd2"
+    },
+    {
+      "before": "mm_0_0_7_plant_zero/independent_plantnet_mini_metric_metrics.csv",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_zero/independent_plantnet_mini_metric_metrics.csv",
+      "bytes": 1968,
+      "sha256": "8c2f77332ca89998ef84fa11b435b19ecdba5bcc3b3d1ce1857a183d37410ad3"
+    },
+    {
+      "before": "mm_0_0_7_plant_zero/plots/Other.png",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_zero/plots/Other.png",
+      "bytes": 36903,
+      "sha256": "a6e2742bc593608bf540aeaf6533f0bdb9eb91e47a1b09ca30503217efed6c3e"
+    },
+    {
+      "before": "mm_0_0_7_plant_zero/plots/Rank_macro.png",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_zero/plots/Rank_macro.png",
+      "bytes": 67492,
+      "sha256": "56654302d3bb9862f55f939ae9af5b0fa5ac8aa4ba0b5ade61ee9d3c8bf018e6"
+    },
+    {
+      "before": "mm_0_0_7_plant_zero/plots/Rank_micro.png",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_zero/plots/Rank_micro.png",
+      "bytes": 70387,
+      "sha256": "51ca9bdde5229fc1292158d186dfde95e3d0ed989a2db36f545683577dccdc0f"
+    },
+    {
+      "before": "mm_0_0_7_plant_zero/plots/Standard_macro.png",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_zero/plots/Standard_macro.png",
+      "bytes": 66365,
+      "sha256": "9b5175346e9a00beb0f1dadb35160ed6a47b8810f16b79a1662973587cf42663"
+    },
+    {
+      "before": "mm_0_0_7_plant_zero/plots/Standard_micro.png",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_zero/plots/Standard_micro.png",
+      "bytes": 67502,
+      "sha256": "49ebad19c0929daa2f9aa6c208673ed7bdba6b5f691ea054999b4974691e51f5"
+    },
+    {
+      "before": "mm_0_0_7_plant_zero/plots/Theils_U.png",
+      "after": "archive/versioned_outputs/mm_0_0_7_plant_zero/plots/Theils_U.png",
+      "bytes": 35254,
+      "sha256": "b9393ca4da4f14290bc85deca4b0c76d622af82511821fae9a55c3bdfcfc9219"
+    },
+    {
+      "before": "monte_carlo.py",
+      "after": "experiments/thresholds/monte_carlo.py",
+      "bytes": 4334,
+      "sha256": "7b0ea68a82a1735fffbecb40a14e2d03c26536f844f155fd9e68b745fe4f864a"
+    },
+    {
+      "before": "old/global_lepi/conditional.csv",
+      "after": "archive/legacy/global_lepi/conditional.csv",
+      "bytes": 249254684,
+      "sha256": "ec74740dae66fa3a09c36516856fceb58c004b29f958b9d78c3a756ad1f2a198"
+    },
+    {
+      "before": "old/global_lepi/flat.csv",
+      "after": "archive/legacy/global_lepi/flat.csv",
+      "bytes": 84292777,
+      "sha256": "37ac8237f903759c297e425df9b0c4629c7d232fc06965eeed54d5086d3a2352"
+    },
+    {
+      "before": "old/global_lepi/hierarchical.csv",
+      "after": "archive/legacy/global_lepi/hierarchical.csv",
+      "bytes": 249227107,
+      "sha256": "a3be90f3dc65865348711a77439af50355c13fedac20afb2f9090b8ec575f787"
+    },
+    {
+      "before": "old/global_lepi/hierarchical_full_1.csv",
+      "after": "archive/legacy/global_lepi/hierarchical_full_1.csv",
+      "bytes": 248992608,
+      "sha256": "43b35acc4c83c3beae651fa01b25ed2551e206ca36c4624dcf82c36066acc46f"
+    },
+    {
+      "before": "old/global_lepi/independent.csv",
+      "after": "archive/legacy/global_lepi/independent.csv",
+      "bytes": 249215641,
+      "sha256": "c5b1607f49f9232dcc0143f8d0ca06499d9b42f010b312c1bf77a6fbe7816c39"
+    },
+    {
+      "before": "old/global_lepi_metrics/Other.png",
+      "after": "archive/legacy/global_lepi_metrics/Other.png",
+      "bytes": 37876,
+      "sha256": "ececa510a1198d28d7d4d2df810e2540f6cc260348da6f7c30858612e23a3c9d"
+    },
+    {
+      "before": "old/global_lepi_metrics/Standard_macro.png",
+      "after": "archive/legacy/global_lepi_metrics/Standard_macro.png",
+      "bytes": 39372,
+      "sha256": "2d45acbd05e5b3b4bde4a7b8f77b33f052bc2af66291e97bda6e610d253be4ea"
+    },
+    {
+      "before": "old/global_lepi_metrics/Standard_micro.png",
+      "after": "archive/legacy/global_lepi_metrics/Standard_micro.png",
+      "bytes": 41358,
+      "sha256": "a19fcdbb740bb135ad2e5946627dd708b547839489b6fb30cfddd53c53428e00"
+    },
+    {
+      "before": "old/global_lepi_metrics/Theils_U.png",
+      "after": "archive/legacy/global_lepi_metrics/Theils_U.png",
+      "bytes": 19616,
+      "sha256": "cd5d2bfd3cdf8a78b081c907e0cae48e7e8c19062aac49bc7a68716a19c0c892"
+    },
+    {
+      "before": "old/global_lepi_metrics/conditional.csv",
+      "after": "archive/legacy/global_lepi_metrics/conditional.csv",
+      "bytes": 894,
+      "sha256": "b49c03b532bfd0e94b70e1b202ce03c0e5ecb3389c353ad8530d834f7656e566"
+    },
+    {
+      "before": "old/global_lepi_metrics/conditional.json",
+      "after": "archive/legacy/global_lepi_metrics/conditional.json",
+      "bytes": 1789,
+      "sha256": "9be69cd60191647f9a21541cd4bfa6e42cda6042a006e7fec1e6f65e06b50490"
+    },
+    {
+      "before": "old/global_lepi_metrics/conditional_all.csv",
+      "after": "archive/legacy/global_lepi_metrics/conditional_all.csv",
+      "bytes": 845,
+      "sha256": "f3748f7feb831438302e985510ed90ebc6cc6ea53d2eb844e116fea25ebe0e32"
+    },
+    {
+      "before": "old/global_lepi_metrics/conditional_all.json",
+      "after": "archive/legacy/global_lepi_metrics/conditional_all.json",
+      "bytes": 1681,
+      "sha256": "6505d07e5b79a8d94070080ffeffb523fa647a5a29407d0024ed875fe67a526f"
+    },
+    {
+      "before": "old/global_lepi_metrics/flat.csv",
+      "after": "archive/legacy/global_lepi_metrics/flat.csv",
+      "bytes": 887,
+      "sha256": "2f6a642196e30ff88896b57b9df2853d50c6bd18db0bcec89e165453db344d7f"
+    },
+    {
+      "before": "old/global_lepi_metrics/flat.json",
+      "after": "archive/legacy/global_lepi_metrics/flat.json",
+      "bytes": 1711,
+      "sha256": "8fa781d44922a327daab26944c4807375997eb9970bef2828d7970f88135590e"
+    },
+    {
+      "before": "old/global_lepi_metrics/flat_all.csv",
+      "after": "archive/legacy/global_lepi_metrics/flat_all.csv",
+      "bytes": 847,
+      "sha256": "c487a3cc4a1fa9db849c7bfcefe3e42bacfd4b27fe9630f7f5f644b5c5600c2e"
+    },
+    {
+      "before": "old/global_lepi_metrics/flat_all.json",
+      "after": "archive/legacy/global_lepi_metrics/flat_all.json",
+      "bytes": 1610,
+      "sha256": "5d08213b94ff4222bac4f79cf292b422b725ead30c070257ddf7a5e386065aa8"
+    },
+    {
+      "before": "old/global_lepi_metrics/hierarchical.csv",
+      "after": "archive/legacy/global_lepi_metrics/hierarchical.csv",
+      "bytes": 891,
+      "sha256": "516f0ec4bb034db919d6e9b0647bcd21ce6f6167f2ebf8b901e72eb65ac01c2b"
+    },
+    {
+      "before": "old/global_lepi_metrics/hierarchical.json",
+      "after": "archive/legacy/global_lepi_metrics/hierarchical.json",
+      "bytes": 1783,
+      "sha256": "3cd07cac22d048062a66465959759d7440b59407a22d24f1edbbe292a6266f97"
+    },
+    {
+      "before": "old/global_lepi_metrics/hierarchical_all.csv",
+      "after": "archive/legacy/global_lepi_metrics/hierarchical_all.csv",
+      "bytes": 845,
+      "sha256": "1b7e7d4b4604c585d7537de9339616c9218c27a601bd8b987a9e53dd760e089a"
+    },
+    {
+      "before": "old/global_lepi_metrics/hierarchical_all.json",
+      "after": "archive/legacy/global_lepi_metrics/hierarchical_all.json",
+      "bytes": 1677,
+      "sha256": "57bac24c49be084ee03aaf04355c6688023e6ac3576590ac079b5daedac587e0"
+    },
+    {
+      "before": "old/global_lepi_metrics/hierarchical_full_1.csv",
+      "after": "archive/legacy/global_lepi_metrics/hierarchical_full_1.csv",
+      "bytes": 885,
+      "sha256": "39e2c181000dcc6096e7ffdf47fc1f60042ad5dbabfa8353f19de5657f1fd6ac"
+    },
+    {
+      "before": "old/global_lepi_metrics/hierarchical_full_1.json",
+      "after": "archive/legacy/global_lepi_metrics/hierarchical_full_1.json",
+      "bytes": 1774,
+      "sha256": "6949bbd90e832d372b49344f82d36cb10a6e914c9643b18cd56aad57414e871d"
+    },
+    {
+      "before": "old/global_lepi_metrics/hierarchical_full_1_all.csv",
+      "after": "archive/legacy/global_lepi_metrics/hierarchical_full_1_all.csv",
+      "bytes": 843,
+      "sha256": "20e73dd6f436a9cfd7376c0ecd6c79f24953cab974332ed344e909e3a51ab499"
+    },
+    {
+      "before": "old/global_lepi_metrics/hierarchical_full_1_all.json",
+      "after": "archive/legacy/global_lepi_metrics/hierarchical_full_1_all.json",
+      "bytes": 1672,
+      "sha256": "56a045ae8f95437c3d3801858a2cc918dd3ad42acd531c06ee42d1445fc6a0b0"
+    },
+    {
+      "before": "old/global_lepi_metrics/independent.csv",
+      "after": "archive/legacy/global_lepi_metrics/independent.csv",
+      "bytes": 891,
+      "sha256": "7937f0415e1d45d4c5e91c23ebea86fcfeae3271453fe642eaa451a4d86642ca"
+    },
+    {
+      "before": "old/global_lepi_metrics/independent.json",
+      "after": "archive/legacy/global_lepi_metrics/independent.json",
+      "bytes": 1786,
+      "sha256": "72140a83dbc6b7bd3e3b4dcfaf4e255d77e39a6d82e71293fc01d83e0774601c"
+    },
+    {
+      "before": "old/global_lepi_metrics/independent_all.csv",
+      "after": "archive/legacy/global_lepi_metrics/independent_all.csv",
+      "bytes": 841,
+      "sha256": "64e91f96f29e1f274970751120c23b62cfdd3d114012ba528372bfc7b3cc8478"
+    },
+    {
+      "before": "old/global_lepi_metrics/independent_all.json",
+      "after": "archive/legacy/global_lepi_metrics/independent_all.json",
+      "bytes": 1677,
+      "sha256": "62ff132210d64356061281413a6559a2b46e18a0cbfdeed8330920f0b39dde95"
+    },
+    {
+      "before": "old/global_lepi_metrics_v2/conditional_metrics.csv",
+      "after": "archive/legacy/global_lepi_metrics_v2/conditional_metrics.csv",
+      "bytes": 770,
+      "sha256": "b75ac44551792cf208eb8a4806c875af7a12b5f4235e2eda52f43dd840b4fc7e"
+    },
+    {
+      "before": "old/global_lepi_metrics_v2/conditional_metrics.json",
+      "after": "archive/legacy/global_lepi_metrics_v2/conditional_metrics.json",
+      "bytes": 1400,
+      "sha256": "1ef074edec3f8a4373101e05fe49b791c4d7b6f220af3b3396cffb7ebb31dbe4"
+    },
+    {
+      "before": "old/global_lepi_metrics_v2/flat_metrics.csv",
+      "after": "archive/legacy/global_lepi_metrics_v2/flat_metrics.csv",
+      "bytes": 356,
+      "sha256": "3a1612c30f019ab3b8384977fde7697afd0106e36aeb20f225e99229105897d8"
+    },
+    {
+      "before": "old/global_lepi_metrics_v2/flat_metrics.json",
+      "after": "archive/legacy/global_lepi_metrics_v2/flat_metrics.json",
+      "bytes": 656,
+      "sha256": "78b715f58b4fb83d045fa7b9a31a6f0ccd66b1cdcdf4e433fb24d051e2b151b8"
+    },
+    {
+      "before": "old/global_lepi_metrics_v2/hierarchical_full_1_metrics.csv",
+      "after": "archive/legacy/global_lepi_metrics_v2/hierarchical_full_1_metrics.csv",
+      "bytes": 753,
+      "sha256": "2a98d434c5778f52576d89b39a10a4344da95b17016dd408a3b2c00ccbc1477a"
+    },
+    {
+      "before": "old/global_lepi_metrics_v2/hierarchical_full_1_metrics.json",
+      "after": "archive/legacy/global_lepi_metrics_v2/hierarchical_full_1_metrics.json",
+      "bytes": 1368,
+      "sha256": "f83aa53bc6039ee010a8b2c489b2c6a3434e333a58b974793431cebaaf0c624d"
+    },
+    {
+      "before": "old/global_lepi_metrics_v2/hierarchical_metrics.csv",
+      "after": "archive/legacy/global_lepi_metrics_v2/hierarchical_metrics.csv",
+      "bytes": 757,
+      "sha256": "9a2ebef8533250b2f12f7121871ff83f8d2ab2a018d14f9bbf8a158a0e5b5497"
+    },
+    {
+      "before": "old/global_lepi_metrics_v2/hierarchical_metrics.json",
+      "after": "archive/legacy/global_lepi_metrics_v2/hierarchical_metrics.json",
+      "bytes": 1403,
+      "sha256": "ce52b8f358a3ea5cc59ae57ef3595d202020a90a4375f44631eb2d5110065fe4"
+    },
+    {
+      "before": "old/global_lepi_metrics_v2/independent_metrics.csv",
+      "after": "archive/legacy/global_lepi_metrics_v2/independent_metrics.csv",
+      "bytes": 757,
+      "sha256": "6705b6b3d72c1c87c5278ea5c617ed017c747d13133fa67556f8ff432c037b73"
+    },
+    {
+      "before": "old/global_lepi_metrics_v2/independent_metrics.json",
+      "after": "archive/legacy/global_lepi_metrics_v2/independent_metrics.json",
+      "bytes": 1417,
+      "sha256": "43e214eaa763388ac63713cc44e09855253e4b0f53821aeb05e0d7ac52be379f"
+    },
+    {
+      "before": "old/plots/Other.png",
+      "after": "archive/legacy/plots/Other.png",
+      "bytes": 29962,
+      "sha256": "b59e932ce0252ce553e0f2bf581bd8ea33769d648d76f31a17621bbd20c0ace2"
+    },
+    {
+      "before": "old/plots/Standard_macro.png",
+      "after": "archive/legacy/plots/Standard_macro.png",
+      "bytes": 41903,
+      "sha256": "c4659ca00aeed8eb0b6b366bda5e0ef5e238df25c1f18fb9da79127c21d714fe"
+    },
+    {
+      "before": "old/plots/Standard_micro.png",
+      "after": "archive/legacy/plots/Standard_micro.png",
+      "bytes": 43871,
+      "sha256": "e67ff0c5d87235654635d6bd06a46ccb8219d63cf2acdfca4c1043b4e4e9c931"
+    },
+    {
+      "before": "old/plots/Theils_U.png",
+      "after": "archive/legacy/plots/Theils_U.png",
+      "bytes": 21697,
+      "sha256": "b15c2124fd90e0d11b7c401ce5dd84bdb061dda3dc197bbeb0c0f85d68825c30"
+    },
+    {
+      "before": "old/test.csv",
+      "after": "archive/legacy/test.csv",
+      "bytes": 2551064,
+      "sha256": "31c2541e5f7105f27260541e695459f5b0ade28a72b7ecc3562f65e5f8a36fc0"
+    },
+    {
+      "before": "output/small_threshold_curves.csv",
+      "after": "results/threshold_curves/small_threshold_curves.csv",
+      "bytes": 20079,
+      "sha256": "6bd45c945246a7d8d7c994358ad50a30e73340e2c6c19be83df1d0c6dcac7570"
+    },
+    {
+      "before": "output_monte_carlo/mc_eps_0.0.csv",
+      "after": "results/epsilon_monte_carlo/mc_eps_0.0.csv",
+      "bytes": 11977,
+      "sha256": "43e4fddc0781ed0b5edacba9a8eebbf602345aa6014e6b2ad19242d7194c08af"
+    },
+    {
+      "before": "output_monte_carlo/mc_eps_0.001.csv",
+      "after": "results/epsilon_monte_carlo/mc_eps_0.001.csv",
+      "bytes": 11951,
+      "sha256": "78a31101bfb78b52792e26405e141bbb4699977aa45e6f336c5be3071c154dad"
+    },
+    {
+      "before": "output_monte_carlo/mc_eps_0.01.csv",
+      "after": "results/epsilon_monte_carlo/mc_eps_0.01.csv",
+      "bytes": 11968,
+      "sha256": "f0fa85aa9d4b9c81363a228dd16671fcb8d7733404a1dacfd8091eaa9ba014ff"
+    },
+    {
+      "before": "output_monte_carlo/mc_eps_0.05.csv",
+      "after": "results/epsilon_monte_carlo/mc_eps_0.05.csv",
+      "bytes": 11952,
+      "sha256": "407d1d4e6b442338244dbdb4e0ecd83ce2fc9c2ec1f551330a953f25bbaa6c98"
+    },
+    {
+      "before": "output_monte_carlo/mc_eps_0.1.csv",
+      "after": "results/epsilon_monte_carlo/mc_eps_0.1.csv",
+      "bytes": 11978,
+      "sha256": "bdcf5e9ae464b5c923825cab6e175ec3cdc84cc900509565f8b6ae068325c54a"
+    },
+    {
+      "before": "plantnet_combinations.csv",
+      "after": "reference/plantnet_combinations.csv",
+      "bytes": 29864,
+      "sha256": "d61b9da46040e357f73023c3c0b016dfb1f66fc00c7dbe17bf3a22a0ae0acfaf"
+    },
+    {
+      "before": "raw/autoregressive_global_lepi_mini_metric.csv",
+      "after": "raw/autoregressive_global_lepi_mini_metric.csv",
+      "bytes": 326762357,
+      "sha256": "bc0ae3495ea2bfc73cd88d0de44680dabc3324e8fa3abdbf4a87c1a66ac07340"
+    },
+    {
+      "before": "raw/autoregressive_plantnet_mini_metric.csv",
+      "after": "raw/autoregressive_plantnet_mini_metric.csv",
+      "bytes": 26529382,
+      "sha256": "5c3e18dc9a5bb4003f21dd41b979fec033fa313e889346bb82c4f5fb1a893b25"
+    },
+    {
+      "before": "raw/conditional_global_lepi_mini_metric.csv",
+      "after": "raw/conditional_global_lepi_mini_metric.csv",
+      "bytes": 326771879,
+      "sha256": "e2ffeaac1ac86524b529375d6bbe6d3f5eefb542b74a16f086b9a4dda7d30267"
+    },
+    {
+      "before": "raw/conditional_plantnet_mini_metric.csv",
+      "after": "raw/conditional_plantnet_mini_metric.csv",
+      "bytes": 26531164,
+      "sha256": "c4ff7c4c4ea16e1ab2ec03111445fdf6a60d49764eacafb98184176eea66c987"
+    },
+    {
+      "before": "raw/flat_global_lepi_mini_metric.csv",
+      "after": "raw/flat_global_lepi_mini_metric.csv",
+      "bytes": 110099996,
+      "sha256": "52241c6154b32ec25bab36068d635aeae30c8e0fa93f6c1553e7874a2a3829ac"
+    },
+    {
+      "before": "raw/flat_plantnet_mini_metric.csv",
+      "after": "raw/flat_plantnet_mini_metric.csv",
+      "bytes": 5435858,
+      "sha256": "cf169d34530145cd694232eb8b062d82ba1330a2b2e33708aca53e97b1954ecd"
+    },
+    {
+      "before": "raw/hierarchical_global_lepi_mini_metric.csv",
+      "after": "raw/hierarchical_global_lepi_mini_metric.csv",
+      "bytes": 326434512,
+      "sha256": "9142ed0856826d2014453fb1d815407aa2677ac06891f45b6e6fbfc994a8cfb6"
+    },
+    {
+      "before": "raw/hierarchical_plantnet_mini_metric.csv",
+      "after": "raw/hierarchical_plantnet_mini_metric.csv",
+      "bytes": 26526460,
+      "sha256": "7f4479a63309fe6177ab67c562cab077e6be1f94edea7d495029b6a395caf053"
+    },
+    {
+      "before": "raw/independent_global_lepi_mini_metric.csv",
+      "after": "raw/independent_global_lepi_mini_metric.csv",
+      "bytes": 326760989,
+      "sha256": "96a1df30f1bcdeb213d0dc526e09a787fdfc7a540d24a1ece27e0d9753dec3da"
+    },
+    {
+      "before": "raw/independent_plantnet_mini_metric.csv",
+      "after": "raw/independent_plantnet_mini_metric.csv",
+      "bytes": 26528491,
+      "sha256": "c7c732f3572bbf5cdf539807b63565c1814079e7bd44e9efcb3c6dc82d861cd2"
+    },
+    {
+      "before": "raw.zip",
+      "after": "archive/bundles/raw.zip",
+      "bytes": 256353736,
+      "sha256": "7504dac2c544a204925f3ca1696ba967216f4c346934d497b474bed6918fca07"
+    },
+    {
+      "before": "simulation.py",
+      "after": "experiments/thresholds/simulation.py",
+      "bytes": 13721,
+      "sha256": "981eca1c14be410545dedffef8c754be4cacc9215261a3d3b6180ce5f1f30717"
+    },
+    {
+      "before": "simulation_results/model_confidence_summary.csv",
+      "after": "results/simulation/model_confidence_summary.csv",
+      "bytes": 93,
+      "sha256": "d86ec89a802816e0153854e4d808be0e8572dde57b8770d1dd7ab385e603db58"
+    },
+    {
+      "before": "simulation_results/threshold_epsilon_paired.png",
+      "after": "results/simulation/threshold_epsilon_paired.png",
+      "bytes": 110624,
+      "sha256": "842da89797e5bec4c3feeeab49aeb861862dedf0fcde086074434c5aee8b8bab"
+    },
+    {
+      "before": "simulation_results/threshold_epsilon_path.png",
+      "after": "results/simulation/threshold_epsilon_path.png",
+      "bytes": 264059,
+      "sha256": "c666b999177f41fa49f5e3df0aee856c1ceefcdd681dabbf291b14f3cd193a28"
+    },
+    {
+      "before": "simulation_results/threshold_epsilon_results.csv",
+      "after": "results/simulation/threshold_epsilon_results.csv",
+      "bytes": 356506,
+      "sha256": "f246501089e194379179794c303b69e4acd1fbe736c551ba99938a25b25c3a63"
+    },
+    {
+      "before": "simulation_results/threshold_epsilon_summary.csv",
+      "after": "results/simulation/threshold_epsilon_summary.csv",
+      "bytes": 2518,
+      "sha256": "86fce1a0780e8dee49d5b21ab57085147bc7e024e7478595bca03457c87f6a3d"
+    },
+    {
+      "before": "temp.ipynb",
+      "after": "scratch/temp.ipynb",
+      "bytes": 369774,
+      "sha256": "3b9475318c0ac9415eea19cf21f444c9ca9796736b556bf665418ef414b34f86"
+    },
+    {
+      "before": "threshold_curves.ipynb",
+      "after": "notebooks/threshold_curves.ipynb",
+      "bytes": 731737,
+      "sha256": "a7a5e5d9634786c238400e150def610a532bdea4bc4f5b99c95540bfada09348",
+      "current_sha256": "7afa5c6682d6605e37f78984c1cd81aa2d92d78f28282f573bef9dd4e16b408a",
+      "current_bytes": 731841
+    },
+    {
+      "before": "threshold_curves.py",
+      "after": "experiments/thresholds/threshold_curves.py",
+      "bytes": 20297,
+      "sha256": "534cbabf2e43f86974ddafd7769b1584a0b0f1d4316c1e7d38d0cffb1502214d",
+      "current_sha256": "a32640a56b9b0a2c0eef56f1c4264f1f4962a86459a596b18c79646a4edbd529",
+      "current_bytes": 20315
+    },
+    {
+      "before": "threshold_diagnostic_study.ipynb",
+      "after": "notebooks/threshold_diagnostic_study.ipynb",
+      "bytes": 959947,
+      "sha256": "c6580187969e14da72f2dbddadd90a41be7306c7e0ec91493fb6a7f00c80279b",
+      "current_sha256": "2093c4b82847295298d624dd33f2b878f8b88ebfd1cb7f850f750eeefbe5c76f",
+      "current_bytes": 960052
+    },
+    {
+      "before": "threshold_diagnostic_study.py",
+      "after": "experiments/thresholds/threshold_diagnostic_study.py",
+      "bytes": 28935,
+      "sha256": "cdaf1dbaf70b9a5755cc4e5ba6de76b7ee72635233bb667d3b5d7f9394db3950",
+      "current_sha256": "ecf23a3af46a8748ea60cb077e8a9fb7bf351721bf942c1c36eec64f5b3e2fa4",
+      "current_bytes": 28970
+    },
+    {
+      "before": "threshold_stability_study/README.md",
+      "after": "experiments/threshold_stability/README.md",
+      "bytes": 12127,
+      "sha256": "aabd424c1eb82ba799b6e61aae4428a6bef63ff4afd1a147f7b49f6458e9433e",
+      "current_sha256": "4765a19aecf351c4a99bcf1fa6c6a3977c28812d1a16dc8ac46999434a0c3857",
+      "current_bytes": 12900
+    },
+    {
+      "before": "threshold_stability_study/compare_thresholds.py",
+      "after": "experiments/threshold_stability/compare_thresholds.py",
+      "bytes": 28637,
+      "sha256": "9260cbf61736807cc4fdd7162a67a9efa7b76725ab582b282287ae16a02a399a",
+      "current_sha256": "3bf605b4d5694cebf6d8e6b07401d63fe7fdf84ec8ffb0d15fd5e19d74699cea",
+      "current_bytes": 28653
+    },
+    {
+      "before": "threshold_stability_study/inspect_plateau_switch.py",
+      "after": "experiments/threshold_stability/inspect_plateau_switch.py",
+      "bytes": 10179,
+      "sha256": "e021621d97c5b2d688133d9e35666a831d57565744bac31389be48b50fd74457",
+      "current_sha256": "503925078ee7328a18dad3b316f50355eb102a8b1dae9d0dbdbf11dfcb80572d",
+      "current_bytes": 10313
+    },
+    {
+      "before": "threshold_stability_study/level4_inspection/comparison.csv",
+      "after": "results/threshold_stability/level4_inspection/comparison.csv",
+      "bytes": 754,
+      "sha256": "b8e5fe648f8ab4df8216d95bcdda4dd4fed43a9364fa6e5eaf41048f9e54ecac"
+    },
+    {
+      "before": "threshold_stability_study/level4_inspection/high_class_support.csv",
+      "after": "results/threshold_stability/level4_inspection/high_class_support.csv",
+      "bytes": 52,
+      "sha256": "e0c3de6047726c66bcdc88bf691d1e6dc783454785bf0f8663651feefb7b7c94"
+    },
+    {
+      "before": "threshold_stability_study/level4_inspection/high_components.csv",
+      "after": "results/threshold_stability/level4_inspection/high_components.csv",
+      "bytes": 233,
+      "sha256": "a5774056c6d4785e3ec9f559a45df9221137f17274f94747ff04f3620ecb8597"
+    },
+    {
+      "before": "threshold_stability_study/level4_inspection/high_curve.csv",
+      "after": "results/threshold_stability/level4_inspection/high_curve.csv",
+      "bytes": 154266,
+      "sha256": "b770ec0e773fb81e79edef391c828fab11b50248fb29299f59e9a9a1aa9b64c7"
+    },
+    {
+      "before": "threshold_stability_study/level4_inspection/near_half_class_support.csv",
+      "after": "results/threshold_stability/level4_inspection/near_half_class_support.csv",
+      "bytes": 52,
+      "sha256": "7a54b6746547667e8114030d4e4494db017ec21c89f2ed451a5c0d80db46ec18"
+    },
+    {
+      "before": "threshold_stability_study/level4_inspection/near_half_components.csv",
+      "after": "results/threshold_stability/level4_inspection/near_half_components.csv",
+      "bytes": 190,
+      "sha256": "665ccc1db20385d4007c6fc9d4eaacb391f9dd1ce71c03343df296736c3c69c7"
+    },
+    {
+      "before": "threshold_stability_study/level4_inspection/near_half_curve.csv",
+      "after": "results/threshold_stability/level4_inspection/near_half_curve.csv",
+      "bytes": 157842,
+      "sha256": "fe29a3d66695781eeff11bb595fc5adc884f31109e8241be1a22b46622d678a3"
+    },
+    {
+      "before": "threshold_stability_study/level4_inspection/plateau_switch.pdf",
+      "after": "results/threshold_stability/level4_inspection/plateau_switch.pdf",
+      "bytes": 25871,
+      "sha256": "9304ab4424931aee7faa4b272bedef86e23305fc571a79654bb6c5c577c14d5c"
+    },
+    {
+      "before": "threshold_stability_study/level4_inspection/plateau_switch.png",
+      "after": "results/threshold_stability/level4_inspection/plateau_switch.png",
+      "bytes": 152992,
+      "sha256": "593f6807df96ed3042eeafc0549ddc11524200d5eaca1a7d512aa5f1d88b9ec6"
+    },
+    {
+      "before": "threshold_stability_study/level4_inspection.zip",
+      "after": "archive/bundles/level4_inspection.zip",
+      "bytes": 258250,
+      "sha256": "05a4565df5e2cb1b943a21873e727b4f87c361a0b1ba97036590d81946f83fd5"
+    },
+    {
+      "before": "threshold_stability_study/test_study_logic.py",
+      "after": "experiments/threshold_stability/test_study_logic.py",
+      "bytes": 3987,
+      "sha256": "8b692fdfede7096c90c441a88c0dbd99bf104e8c37f71420b1f1db327df9f122",
+      "current_sha256": "89aa5e11e5c70145068e1fc83f0baa81b4b7af6e92e2696c8a99430789aaa9c7",
+      "current_bytes": 4056
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results.zip",
+      "after": "archive/bundles/threshold_study_results.zip",
+      "bytes": 2762399,
+      "sha256": "a022ecea1ea08b176200897f3d50a7e6b5133654a830a9657851c09e70ac8222"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/metadata.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/metadata.json",
+      "bytes": 1409,
+      "sha256": "0220ad62b359bccd1820166e62c2c79acf124c37734ee5b100be248b22687136"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/paired_vs_argmax.csv",
+      "after": "results/threshold_stability/threshold_study_results_hier/paired_vs_argmax.csv",
+      "bytes": 535384,
+      "sha256": "9e019d8c8a79a279daa4f6844f59f713efbb7526fbef9a3d060b15ec80093ac4"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/partition.csv",
+      "after": "results/threshold_stability/threshold_study_results_hier/partition.csv",
+      "bytes": 361968,
+      "sha256": "87b582090f0ff06a15e19fa74b8ff606a977bd0a7dd17eaf036fd0615d7853e6"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level0_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level0_n1000_exact_0.png",
+      "bytes": 97048,
+      "sha256": "28cc1d470983b11484b6ef911e02f236e80103e26cc880032f85a55bfecf2563"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level0_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level0_n1000_grid_linear_18.png",
+      "bytes": 95624,
+      "sha256": "a43e219394d1be8b17d7cfbe830e785182cc04750f7b3cb7aa4ce10be2f7dbaf"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level0_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level0_n1000_grid_quantile_18.png",
+      "bytes": 99024,
+      "sha256": "0dfaf6caea6406367cbcf5874506582f0ca168473794a4a6f952b6180653f73e"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level0_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level0_n200_exact_0.png",
+      "bytes": 96259,
+      "sha256": "1b4b8e5eeb812454e30295ff0c681dc8cc50b2f606e9ff34045a59648435925a"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level0_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level0_n200_grid_linear_18.png",
+      "bytes": 96679,
+      "sha256": "c07c68830c007ef795723bf7d8b309ed62ed26196d7c9dcfca95a184a1aef499"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level0_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level0_n200_grid_quantile_18.png",
+      "bytes": 97357,
+      "sha256": "69f38b4748c06014f4d609918d5fd75a960c87012b5f5a6c2dc7e96d8533125e"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level0_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level0_n4000_exact_0.png",
+      "bytes": 95530,
+      "sha256": "ac7fc221bc3841cdac85197efbf9161705c12e091ae8107c1aeafd62b3365b11"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level0_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level0_n4000_grid_linear_18.png",
+      "bytes": 95440,
+      "sha256": "cb40ddfb4bffc87bf0863428ca59aa5942313c908e1dd043232f944464887bc6"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level0_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level0_n4000_grid_quantile_18.png",
+      "bytes": 97383,
+      "sha256": "b11397b54dfd0d9db21bb5d375957f8bc13df5b4a986c565bb45905f8ef85841"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level1_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level1_n1000_exact_0.png",
+      "bytes": 94861,
+      "sha256": "cd18aa26f226f4894484aa1682f1a00aa733d2f0a11f67861e82a239df9101ca"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level1_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level1_n1000_grid_linear_18.png",
+      "bytes": 96879,
+      "sha256": "c4ab3c320b7aad032b88b4c2832d08fa93605d203baf03fd82899f66071d064a"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level1_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level1_n1000_grid_quantile_18.png",
+      "bytes": 95241,
+      "sha256": "1b604bbc52e5b445320938c578f75fa23d998194c061ce67db129f489946a858"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level1_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level1_n200_exact_0.png",
+      "bytes": 94222,
+      "sha256": "7866cf21d6fb70143aa8e96ff9e9fc05c3cd963a948a05013acd3f25ee494ef6"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level1_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level1_n200_grid_linear_18.png",
+      "bytes": 94708,
+      "sha256": "1eea9b2577867a93beaaad5c0ce78c134ace1ab59861f46ec9cc0fee1b24bb47"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level1_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level1_n200_grid_quantile_18.png",
+      "bytes": 93463,
+      "sha256": "644d23f212f295128d17f7b592192299c3d52a9636aff9403d7d0410d6fb8e25"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level1_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level1_n4000_exact_0.png",
+      "bytes": 95791,
+      "sha256": "2ddd2c5ddce716e8a20346a82edcd756feaf22a51e9ba87d4b6f0c0e7604da8c"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level1_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level1_n4000_grid_linear_18.png",
+      "bytes": 94890,
+      "sha256": "238533e17e63b25b22eeaa3a2a88ed721a56ae09e7708fc274e11c989535a11b"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level1_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level1_n4000_grid_quantile_18.png",
+      "bytes": 96653,
+      "sha256": "a894d9e4fa5203bc5ce8d3fbebcfba8fe38249ab6e248e4c1cf387b6f569bca0"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level2_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level2_n1000_exact_0.png",
+      "bytes": 93391,
+      "sha256": "1e8961c003805e751baba7572ca6916b0d3087db8757edc2604698289ee213a3"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level2_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level2_n1000_grid_linear_18.png",
+      "bytes": 96335,
+      "sha256": "ed0be07bcee8c0ce0bc811379c40402822939d106b1463c5170024ab08b5eb12"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level2_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level2_n1000_grid_quantile_18.png",
+      "bytes": 97250,
+      "sha256": "e5dfe61ad500a84103f09a4bf50f06c1ce12c24cb02c6e361f17bfcad5424411"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level2_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level2_n200_exact_0.png",
+      "bytes": 96428,
+      "sha256": "51d8fec6e3cc7cb416a95342eb80585e450d22428c477819a45141abcbea8b6f"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level2_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level2_n200_grid_linear_18.png",
+      "bytes": 96760,
+      "sha256": "dbead9cf18e76a1149e626561cf8a723c62be93626b1eee1a5e06973d9597f6c"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level2_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level2_n200_grid_quantile_18.png",
+      "bytes": 95500,
+      "sha256": "8a93b1949779752a0656e91180f306a610a069876a741037ea8ce8b403f45207"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level2_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level2_n4000_exact_0.png",
+      "bytes": 94770,
+      "sha256": "9fb6d9cced9edd9e48cd092d00d6bbb894874ce809822f6e5d2ef2d25c43ff02"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level2_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level2_n4000_grid_linear_18.png",
+      "bytes": 96775,
+      "sha256": "fe67e4fe9cc0d0865dfbcb5fc55993c4400caeb47aa5980df5b8dae19d8ec656"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level2_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level2_n4000_grid_quantile_18.png",
+      "bytes": 96092,
+      "sha256": "6e176b47b55ecc0d5179f20c8890cb8234eab0ce858410a1e928a41ca0401c7a"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level3_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level3_n1000_exact_0.png",
+      "bytes": 95807,
+      "sha256": "b508cd4f882dca4599c68db33eea86954be632ead17fdbae80f0cbb4b5e016e0"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level3_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level3_n1000_grid_linear_18.png",
+      "bytes": 94828,
+      "sha256": "bd804c4f98a2cfee0721240c0125efd670a20acefde45e9655bfaabb21158f42"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level3_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level3_n1000_grid_quantile_18.png",
+      "bytes": 94661,
+      "sha256": "6ddf758c3f0f95b30db8555ec38c90608cc23a0e196ac6f2cf23b554661dbc8f"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level3_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level3_n200_exact_0.png",
+      "bytes": 93862,
+      "sha256": "6db939b06b6e34541998b90501a1bc718cefc493f29668f5f79542fb6b599c7a"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level3_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level3_n200_grid_linear_18.png",
+      "bytes": 95038,
+      "sha256": "94acc92293160f2fb6b6524261fdb15647a2df8dd0438e6eee5e81c886a5f104"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level3_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level3_n200_grid_quantile_18.png",
+      "bytes": 93517,
+      "sha256": "f4ec71d914a6cbe00c59910cda4c74f7e7cbeee31d047ac870b9b10e899e5781"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level3_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level3_n4000_exact_0.png",
+      "bytes": 95529,
+      "sha256": "888f10752f3901238142654b124fc3a5991574d5a8a06a026508883c5d814f98"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level3_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level3_n4000_grid_linear_18.png",
+      "bytes": 94590,
+      "sha256": "40abd4e3e183883d5189edebc2b4cf933c53e6e0a554593b6db8225dbfe3a011"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level3_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level3_n4000_grid_quantile_18.png",
+      "bytes": 95727,
+      "sha256": "48ac47a1db499827e45df42b3899c19d250428ea77f8faec8b17d93277275496"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level4_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level4_n1000_exact_0.png",
+      "bytes": 93524,
+      "sha256": "0444a4f2e0a46b13ba16531ae4dc0ce43428711571b0c0c52c4a9d66d574c0d2"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level4_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level4_n1000_grid_linear_18.png",
+      "bytes": 96242,
+      "sha256": "eda9a4c9741be8dc5f3ffca89bb7e6dc5618ae8f483a9ff8dab64fa48dd77759"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level4_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level4_n1000_grid_quantile_18.png",
+      "bytes": 92967,
+      "sha256": "5611d008b3f6867ebf146fada70b1d733df7cf70262f2175f660804131a3568f"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level4_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level4_n200_exact_0.png",
+      "bytes": 92925,
+      "sha256": "a23548b9f975bfbb1b0ab32735f322d5e40725f6d610d53a0c60b59a2ffee080"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level4_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level4_n200_grid_linear_18.png",
+      "bytes": 95861,
+      "sha256": "1ba06f996f539c3297a389d01fd171ff8323ef88f925b88897f30a9d50fa90da"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level4_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level4_n200_grid_quantile_18.png",
+      "bytes": 91830,
+      "sha256": "c34cc86bab6eff93ef0134688d3da3e287e702f45a7e6ea3b5b98565d31b712b"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level4_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level4_n4000_exact_0.png",
+      "bytes": 93310,
+      "sha256": "814fc6b451128c5d6dbb90531dfeb4f1b30a90b95db3fbc2677eee4463ef251d"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level4_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level4_n4000_grid_linear_18.png",
+      "bytes": 94532,
+      "sha256": "d688dcf1638f2a9eb9790fd0cea4e3ec2bc36fcb07c84a594aad0d674014b334"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/stability_level4_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/stability_level4_n4000_grid_quantile_18.png",
+      "bytes": 94566,
+      "sha256": "d725a8554ee7e7caf5b0339ef09c171504c822a524e17dd1968532f0ae4a9a71"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/summary.csv",
+      "after": "results/threshold_stability/threshold_study_results_hier/summary.csv",
+      "bytes": 179382,
+      "sha256": "af695cebc9d9cad42cc5d6776c5e2db601e41fbd9561fa4b06aea0cb0ad48bc5"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n1000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n1000_exact_0.json",
+      "bytes": 140539,
+      "sha256": "e184afc01ec7f170bc57d87ce28d3c21e9226d1f3819630b12d8a8db3bed0a0e"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n1000_exact_0.png",
+      "bytes": 206004,
+      "sha256": "2c7d77ab998a406b1c5675dbc3dde805d930c98bf5edc90e1e23335e17256120"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n1000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n1000_grid_linear_18.json",
+      "bytes": 76980,
+      "sha256": "1fc476e1a95ebcc22af542cde0f0e94597bd17b0c5959114e34bf6845ade27f7"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n1000_grid_linear_18.png",
+      "bytes": 160278,
+      "sha256": "ad5288441249aa827523672528996c14be00a642852d39d31b1ecaa19fc46bae"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n1000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n1000_grid_quantile_18.json",
+      "bytes": 77052,
+      "sha256": "4ac2fb6ed826276009b8d173936f3f1c49d793cdb5466e5429d62010641ea9e0"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n1000_grid_quantile_18.png",
+      "bytes": 162288,
+      "sha256": "b763c8e6bd513cc97abc5716cc275fbee6d36e4bdba0da06c2ce0701875c4cbd"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n200_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n200_exact_0.json",
+      "bytes": 36910,
+      "sha256": "1219e50fe17a6c018468bc020610861b8702670a51e6fdca3a4388f3f3d072fb"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n200_exact_0.png",
+      "bytes": 197038,
+      "sha256": "05dcc45f5ea3d435e448cf872145e45b59556aaf7069ed79a8cefcf62315800a"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n200_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n200_grid_linear_18.json",
+      "bytes": 25075,
+      "sha256": "26da09bd600bbebd2f84964f0481daa9382b5b2a2357738fa0553be0e607cb50"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n200_grid_linear_18.png",
+      "bytes": 157323,
+      "sha256": "5bfc2e7f8c0a65ddb593f128c6a4a55e1a1f3263870f9853511ebd19645ff51b"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n200_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n200_grid_quantile_18.json",
+      "bytes": 25251,
+      "sha256": "eef6e98c6676c4c2eeb0c668aefca4c8ae04415113f5910facbf6a9eeebac1f2"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n200_grid_quantile_18.png",
+      "bytes": 159562,
+      "sha256": "869537a044c10fe014344da126a7725027e10edc7f3cae10b9dbe960e9ea4e7c"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n4000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n4000_exact_0.json",
+      "bytes": 533238,
+      "sha256": "601f9c077a8488c431ebe928c21b3f40e5bda3cc19b8e4cc4bca24e0338e24ce"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n4000_exact_0.png",
+      "bytes": 190350,
+      "sha256": "4f75606be9ef22f4860f3af8c25caa51427d53e44bb63d2aad232ad62df74253"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n4000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n4000_grid_linear_18.json",
+      "bytes": 273346,
+      "sha256": "b9869de28aac40775c034b3009e6785663214a9745643d5f8f8cffacb181301b"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n4000_grid_linear_18.png",
+      "bytes": 152697,
+      "sha256": "26463e27dc291dfcd5684007204c81a620ee52bc4457a8e0f3cdd4a6b32ecfed"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n4000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n4000_grid_quantile_18.json",
+      "bytes": 273419,
+      "sha256": "b592bf77118a8dd3bee1dcd3c8aebbc029d1df93c9c670c1c07b5e90ab6bdebc"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level0_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level0_n4000_grid_quantile_18.png",
+      "bytes": 157561,
+      "sha256": "abadbd839823b9d96c411f8353f0b12fbe1ae15080be305de05844c34bae4710"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n1000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n1000_exact_0.json",
+      "bytes": 138175,
+      "sha256": "3bb234e6086e1b8d3f7f04623e9e0beca0b2d358f9c8db3d92da2633a3dcc367"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n1000_exact_0.png",
+      "bytes": 181709,
+      "sha256": "dc70511d6b3e23fe2b3316d0180d8f94c712bc69218bb5aae9ab90d1136d0923"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n1000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n1000_grid_linear_18.json",
+      "bytes": 75746,
+      "sha256": "395f70318895d5eed336de4dbdeefe89092075b1179529ec7c91cfa2a7a6fd9d"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n1000_grid_linear_18.png",
+      "bytes": 147203,
+      "sha256": "2563b48bc827f4820025fbfaeca20a73462cd42cfd27e5b906e667197fbc54d9"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n1000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n1000_grid_quantile_18.json",
+      "bytes": 75877,
+      "sha256": "ebb5b70286683282c020f0adbf0c7b452893c7fe439597e985dbb6c7a6dd07b4"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n1000_grid_quantile_18.png",
+      "bytes": 152537,
+      "sha256": "d856019518b9680a62f9af36e15e4318c35a7f263182b24bb7225fe7a6f929a3"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n200_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n200_exact_0.json",
+      "bytes": 36503,
+      "sha256": "b7192bd22e7ee9de94c2e3faf533a0168f105c4eda49e5a2cacf17f29f1777bb"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n200_exact_0.png",
+      "bytes": 174096,
+      "sha256": "9da5955b464d086b6bcbaa7d053c67c9845e2477309b5d8af98e7c6d24adaf8b"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n200_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n200_grid_linear_18.json",
+      "bytes": 24601,
+      "sha256": "e7b6bbcf087f2c1cd30291a1766beeb241ff2ffaf46d694ad70f3dc34a289144"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n200_grid_linear_18.png",
+      "bytes": 144047,
+      "sha256": "42f769e4391bca38a80c0e12d56907b5c85e86a7a2e2064cfbb51b685271db23"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n200_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n200_grid_quantile_18.json",
+      "bytes": 25006,
+      "sha256": "fc85965aa7b4e825788fc957ce89238ea16099be17f9896e450be68847c4b25c"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n200_grid_quantile_18.png",
+      "bytes": 150950,
+      "sha256": "c9ed91443a2f9d48c335397583aeb0a4257fe04fa91e18ac12ac304fd074da90"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n4000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n4000_exact_0.json",
+      "bytes": 505286,
+      "sha256": "816a7a936c35b96c4aeb89574cfdbedd9172cde02b3263af63ea8f709fa198e1"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n4000_exact_0.png",
+      "bytes": 189714,
+      "sha256": "803172c67db2b776b2ab8de18b1a2924ac77d030d5171ece374ca46a7b8750ef"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n4000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n4000_grid_linear_18.json",
+      "bytes": 259364,
+      "sha256": "a9f1d872d54e62bb43ca2124a0ab052dbd12fb3e2636a706fd74ca503fa2e0ef"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n4000_grid_linear_18.png",
+      "bytes": 150387,
+      "sha256": "8858d0dec92a4395017d4ad986cb076191901d3e718e7c21b2ab619cdec18791"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n4000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n4000_grid_quantile_18.json",
+      "bytes": 259380,
+      "sha256": "e03a26c17fe5b57152c036d4fac4981142281f780b197f93b5e8c6db9d595893"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level1_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level1_n4000_grid_quantile_18.png",
+      "bytes": 155277,
+      "sha256": "2d01e341cca5c29d90d761215b999327beb3d4287a2d40c6c2e15db3da532bc4"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n1000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n1000_exact_0.json",
+      "bytes": 135610,
+      "sha256": "0172f2a96a55e1b4fba7905b1829aaf5d3a5228a01368884855f9210fd72506c"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n1000_exact_0.png",
+      "bytes": 172554,
+      "sha256": "3bc10b569cbe4b40d6a12c7d8b0bb09aa089fe609898aa5d63ea607c72fc90c6"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n1000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n1000_grid_linear_18.json",
+      "bytes": 74401,
+      "sha256": "e8253abdccf88c339207cabfd73e975b8aacfb6f61715e3302458ed21ebd6bbe"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n1000_grid_linear_18.png",
+      "bytes": 141857,
+      "sha256": "6a3616208d40e3fa06c53a0b8f63647524393e007a9cad47a6393daf72251444"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n1000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n1000_grid_quantile_18.json",
+      "bytes": 74581,
+      "sha256": "42e59ebf50b0ac9dcad98697f01fc8f8fa2191afe3a9d7e8f36423ab71d50269"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n1000_grid_quantile_18.png",
+      "bytes": 147504,
+      "sha256": "d51eb086628375cd49eb319bea6e6085157858b8f8cf39ddf56e65fe9c77b725"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n200_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n200_exact_0.json",
+      "bytes": 36379,
+      "sha256": "31d21d00c3290378b749c16a08578f1834b4cce06adb0888290f275f5aae2593"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n200_exact_0.png",
+      "bytes": 165658,
+      "sha256": "3373bcaa9faa462d0a6b7e0b964dc3a6ff5434af160747fb4a61616d49b676e2"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n200_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n200_grid_linear_18.json",
+      "bytes": 24358,
+      "sha256": "13e77f1d355bd737f94ccd4cefbcdb33e1d2401c149c24a4e2f0bba53d24d354"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n200_grid_linear_18.png",
+      "bytes": 137931,
+      "sha256": "92c219aedc3f04937d42fb5d6f9ad00e57bd0a0f3daf45b53c5f080eb277f446"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n200_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n200_grid_quantile_18.json",
+      "bytes": 24931,
+      "sha256": "167107bb8144454d9465c736d099a7a188251915437f964771547baa15c4fb7e"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n200_grid_quantile_18.png",
+      "bytes": 146964,
+      "sha256": "92543f75e104b59d1a02f6e79d400150364f6bf0b89ea17f463b8b3e217cf0e9"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n4000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n4000_exact_0.json",
+      "bytes": 481797,
+      "sha256": "4ba18609a8c0986cc0acfc70e0293b91ead9e060aa01f6a2d0f20e0d6e1889b5"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n4000_exact_0.png",
+      "bytes": 176650,
+      "sha256": "a968a82ce9b965c28ef9c4e8973b29527c08eb405cffc298f6319b6aa87b20ee"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n4000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n4000_grid_linear_18.json",
+      "bytes": 247491,
+      "sha256": "0abdcc10f561564552cafde539d8ea1a063120f1facd7041ca5e74d2b9c1a3cf"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n4000_grid_linear_18.png",
+      "bytes": 141992,
+      "sha256": "9389495d1381bcf59b57f365fb1e70ecdee80355dc170c6f5cf2722a7f3ad8b7"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n4000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n4000_grid_quantile_18.json",
+      "bytes": 247576,
+      "sha256": "d4af8e8cb9052258971008c35b5c9cee93dcdf2997a0f067e6e49b21c760a19e"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level2_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level2_n4000_grid_quantile_18.png",
+      "bytes": 146431,
+      "sha256": "1eb77a04bf67a7c8dff8437037ede205fb8efa26fb3235b5412bdeade9b4894b"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n1000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n1000_exact_0.json",
+      "bytes": 134979,
+      "sha256": "08c989908960c32998bb5a27e0c6111a234e4aa8bb9609b303f2b8e1d103e9fd"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n1000_exact_0.png",
+      "bytes": 169473,
+      "sha256": "25744ba3f2723844e7ca8203c867bb615ca4aba86a3a8d43e5213d99f37a665c"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n1000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n1000_grid_linear_18.json",
+      "bytes": 74083,
+      "sha256": "51cd0f00fcf3dd70a280509c623a49326f373099703cc63c110fdb1ee73ace0f"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n1000_grid_linear_18.png",
+      "bytes": 141168,
+      "sha256": "ec97ebd63ec55268592ab342ce8132e783db0f51d324a390f88556dcab99613f"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n1000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n1000_grid_quantile_18.json",
+      "bytes": 74197,
+      "sha256": "b803b7d2803c0940e0a3484ed897ea1c8a8ab9cb21191bce37ebadc7ace522ff"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n1000_grid_quantile_18.png",
+      "bytes": 147137,
+      "sha256": "20b911ae2b2048175c003b6a9c78919f059e39ecddf52f7a952808739b92069c"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n200_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n200_exact_0.json",
+      "bytes": 36644,
+      "sha256": "72f3de3cdaa510381bafe2fe9dde0c2d9e3598885c26d5e05e1ca39222ec326f"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n200_exact_0.png",
+      "bytes": 173525,
+      "sha256": "cf4415e44c9b9725dfeee15b415c200bc47eb3b11355cc70854dba7e7387fcd0"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n200_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n200_grid_linear_18.json",
+      "bytes": 24457,
+      "sha256": "22c45ebfbfe94bd9c1e7abef277a7d43fad900f51b788b61cd1dd94eb2ce5b6e"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n200_grid_linear_18.png",
+      "bytes": 146685,
+      "sha256": "4a166f66cce40b240c5157f93e43c829fbb90f65f6e26d889472ee08dffa20b6"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n200_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n200_grid_quantile_18.json",
+      "bytes": 25090,
+      "sha256": "cc303e05b703f3294c7c35b3207d445531583a75a0343afe0f6209ac0c1d5124"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n200_grid_quantile_18.png",
+      "bytes": 150620,
+      "sha256": "535f2e58760a9568df89835178ef98cead0c0633968c74d638c941d1e86e6471"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n4000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n4000_exact_0.json",
+      "bytes": 468751,
+      "sha256": "7ae622a6096e2296fd053808be07e63bf468b1db5a95b865ff59b6b4c233b3cc"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n4000_exact_0.png",
+      "bytes": 171439,
+      "sha256": "5641b6cdbe5350871d411a796cf72e323752c47ef060950742f818ffce9ba276"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n4000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n4000_grid_linear_18.json",
+      "bytes": 240983,
+      "sha256": "67761f433966ceae8a593c2197b592e30c440c3fb794073d88de175823cb9c84"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n4000_grid_linear_18.png",
+      "bytes": 135840,
+      "sha256": "cda21250c5f8fe1eef5b053986ea22ba5d0218fbe42fc1af63568bba6998b78c"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n4000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n4000_grid_quantile_18.json",
+      "bytes": 241019,
+      "sha256": "9f61e6e29ecebacae395a27467883667aa456f752239e7aa391026182e08299a"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level3_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level3_n4000_grid_quantile_18.png",
+      "bytes": 143607,
+      "sha256": "548aa9c75eb468068b7ca6c51cbfc0106b440089f61a1eb6cd5c6d0a1da9daed"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n1000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n1000_exact_0.json",
+      "bytes": 121884,
+      "sha256": "62625e7fd3fa8da8113f91038d3e56a17a1f9eb22b605baeb5c078aab5d4be9a"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n1000_exact_0.png",
+      "bytes": 154604,
+      "sha256": "0a1d64d4a83b3619b9f53d8f82bd123e2d92055ce5a100bc92d2b53729d6fff7"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n1000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n1000_grid_linear_18.json",
+      "bytes": 66939,
+      "sha256": "4c38d00090970f08469c164e000f6c32e152bc8ccf25e8ab883134fd4b947e85"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n1000_grid_linear_18.png",
+      "bytes": 131564,
+      "sha256": "682aa2d990670ef22f3093c3a2f5009e340bd60ae9e3edb322f5df64358517d5"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n1000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n1000_grid_quantile_18.json",
+      "bytes": 67480,
+      "sha256": "9ddd6fefa200db3145aa12770fa3bbc550cfd02108c32b51b65c47484cc1b5a9"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n1000_grid_quantile_18.png",
+      "bytes": 136635,
+      "sha256": "aa0a6be0e984529120945085191ccd63d9530fcfe89da3b3e65a9b5c0b6e0241"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n200_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n200_exact_0.json",
+      "bytes": 36100,
+      "sha256": "7b5fcf3d3f93d61b1f6035f20ee5f7ab6fa7c35b68c69ddf760828b6b60e920c"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n200_exact_0.png",
+      "bytes": 160788,
+      "sha256": "02b0c3e6fe1d99ca53e651d1bae5a837629aa4725bbb29040a6193802fad2266"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n200_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n200_grid_linear_18.json",
+      "bytes": 23244,
+      "sha256": "a36ea28cd59d7e9b944b661b6bddd23b6bee7129333b76d422b6236c2685e1b9"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n200_grid_linear_18.png",
+      "bytes": 134982,
+      "sha256": "0171384d296fe4475165a843767a1a0791cfc795984be3c4482e7e84c2c1019a"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n200_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n200_grid_quantile_18.json",
+      "bytes": 24357,
+      "sha256": "721358ac74c4334f71aa63b8d3d85d66423354e6e9bf150f2f9c948f7a605868"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n200_grid_quantile_18.png",
+      "bytes": 144091,
+      "sha256": "e095c52c5d93ecd7f1318d2b1c3c9bfb15b6806e0354ab9e8f532e704b2b677b"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n4000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n4000_exact_0.json",
+      "bytes": 377279,
+      "sha256": "5724364124258924778d7f90c7e69038fa6f1d85adadeeb69714c46de43289ef"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n4000_exact_0.png",
+      "bytes": 163841,
+      "sha256": "dadbed29e445b20871520fac1af64c53b162a2713c8d19446dc81733155ea575"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n4000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n4000_grid_linear_18.json",
+      "bytes": 194946,
+      "sha256": "43322572e3f9bc1599cb15f08734a445d9972da667fa22a2b7eba650599f173f"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n4000_grid_linear_18.png",
+      "bytes": 132794,
+      "sha256": "371eb30601dc9dd709195d0fa927345df6a3493a0209143647f5af6f0ac9221c"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n4000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n4000_grid_quantile_18.json",
+      "bytes": 195261,
+      "sha256": "feebb328329fc37393db9d4176affc6f52d9cf3207ae6a0202a8f9d08372a5f8"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trace_level4_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_hier/trace_level4_n4000_grid_quantile_18.png",
+      "bytes": 140050,
+      "sha256": "86c3ecfbc64ebd581a20589ba3671ede756ded8518ceaaeba333e1ac7cf50a5b"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier/trials.csv",
+      "after": "results/threshold_stability/threshold_study_results_hier/trials.csv",
+      "bytes": 11358964,
+      "sha256": "294f31768da401b144b72f190b86e8955b0c88a9a78fe6b4a6836c02a0527a3a"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_hier.zip",
+      "after": "archive/bundles/threshold_study_results_hier.zip",
+      "bytes": 13235075,
+      "sha256": "e8ffe947255fd2f8aac7168d35a4a13d7e372b95ab4e0441f658c06cf11a5cd2"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/metadata.json",
+      "after": "results/threshold_stability/threshold_study_results_real/metadata.json",
+      "bytes": 1400,
+      "sha256": "c99ea844029297a91c5e18f3058c7ed336b6b834ae61c59d8ac5e81d06262351"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/paired_vs_argmax.csv",
+      "after": "results/threshold_stability/threshold_study_results_real/paired_vs_argmax.csv",
+      "bytes": 107549,
+      "sha256": "988f4d1c308579bcb3f945d34a8ce5ce2c3e30d4f37a05c556dba209604990cc"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/partition.csv",
+      "after": "results/threshold_stability/threshold_study_results_real/partition.csv",
+      "bytes": 361968,
+      "sha256": "87b582090f0ff06a15e19fa74b8ff606a977bd0a7dd17eaf036fd0615d7853e6"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/stability_level0_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_real/stability_level0_n1000_exact_0.png",
+      "bytes": 96063,
+      "sha256": "2211cf46d50a1dd85c1a25642832b573cfae66c8a930b520b1a946f9b2d45563"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/stability_level0_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_real/stability_level0_n1000_grid_linear_18.png",
+      "bytes": 95485,
+      "sha256": "6bdc566bd8838685f7e968fb810354b1df8bd8e9ec3b51221ac1034066784bf8"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/stability_level0_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_real/stability_level0_n1000_grid_quantile_18.png",
+      "bytes": 97427,
+      "sha256": "d308c5dcd7f11f6490d609b1189bef63873371e2ced4bb0aff4f78529aa305f5"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/stability_level0_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_real/stability_level0_n200_exact_0.png",
+      "bytes": 95711,
+      "sha256": "53c8513b8659ee6bb491c798433b6bb3b9615a9d710f5b1f74e38c6ce5f788ea"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/stability_level0_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_real/stability_level0_n200_grid_linear_18.png",
+      "bytes": 97655,
+      "sha256": "931fe79cc7b1d9da9233c79f611403553203a90978d5d40357757d1f98dc91e6"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/stability_level0_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_real/stability_level0_n200_grid_quantile_18.png",
+      "bytes": 97066,
+      "sha256": "5303fb48e273ea64935b1a1381e39a848fade2e1470efc04f409a9ab868aca16"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/stability_level0_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_real/stability_level0_n4000_exact_0.png",
+      "bytes": 97894,
+      "sha256": "57283634c0e91591f46a4406fd8b7062374602a4ae17b4cbcfdbece3ad9ce0a5"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/stability_level0_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_real/stability_level0_n4000_grid_linear_18.png",
+      "bytes": 95963,
+      "sha256": "9f4ccc7518960f94cc5d2b8e8f4cf4491d69bd06c634ee04242f1f1e98da62a1"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/stability_level0_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_real/stability_level0_n4000_grid_quantile_18.png",
+      "bytes": 99174,
+      "sha256": "3d6e89bee62dde38ee494372b86bbc1dc60004f129e16304c750a55c1945f06d"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/summary.csv",
+      "after": "results/threshold_stability/threshold_study_results_real/summary.csv",
+      "bytes": 36325,
+      "sha256": "e0cb4e204db3dc34fbacb246c6fc1c76cb2c3e58efeb5d54335cf8454790c13c"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n1000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n1000_exact_0.json",
+      "bytes": 140783,
+      "sha256": "9056b1b8ab94668897a9919660a7d217cae68d532215f111ad53b8df7bcae499"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n1000_exact_0.png",
+      "bytes": 205354,
+      "sha256": "d18f2ab0f94ab0eaebedca2bf07b443aa909f65fff2fa023a8a7f626fecd2a4d"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n1000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n1000_grid_linear_18.json",
+      "bytes": 77030,
+      "sha256": "5eb54495c231858851ba004a15452a1a7f519825d46d4bd6fa6b5a6287645d52"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n1000_grid_linear_18.png",
+      "bytes": 160405,
+      "sha256": "ddc095692c04b5ac3cb3e855c7395be37afe3b0654ae92723b0f37844309f903"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n1000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n1000_grid_quantile_18.json",
+      "bytes": 77100,
+      "sha256": "65ee68381c3b857eeb0e8c0d2d41a4919b22bf1ced93f9a39bfec539713ddb8d"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n1000_grid_quantile_18.png",
+      "bytes": 160602,
+      "sha256": "90730d4030d2fb3deabb0748611d4862a3e3303ccb10f7cc8788086bccc64101"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n200_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n200_exact_0.json",
+      "bytes": 36926,
+      "sha256": "b946d5896ec986fe770c8deff5258f2d360f99c13223210605b74932b862addd"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n200_exact_0.png",
+      "bytes": 195232,
+      "sha256": "c95aac1014e8e76f94154297e6161f54ec56540dc11e149428b74cff991d04d6"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n200_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n200_grid_linear_18.json",
+      "bytes": 25158,
+      "sha256": "649dac99f8968f3b9bf54e4a5b7a7c6c2a9b46ca40789ff515112a6d43844533"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n200_grid_linear_18.png",
+      "bytes": 156098,
+      "sha256": "7fd6206044de90d38d02423e9903289f7acfbab4b1db9add6b73eb60516e11c4"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n200_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n200_grid_quantile_18.json",
+      "bytes": 25168,
+      "sha256": "c40901b2b8ed8a573fdc650d8e1aadd67523d1de3b24eb9af96b5bd4c57a57d6"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n200_grid_quantile_18.png",
+      "bytes": 159233,
+      "sha256": "bd448e6394b4892ed51154c513189f10728d80e3f2732c7aca6b9335b2990f64"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n4000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n4000_exact_0.json",
+      "bytes": 535116,
+      "sha256": "d66511e564d56f755f73f461d28e5a9a58a3e73d0b8c1ef780f3482b378b26dc"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n4000_exact_0.png",
+      "bytes": 194303,
+      "sha256": "916fe485cc71da42be0c9767d8ce1d98c9f4de3f7d21af01d03e4b9651c5b953"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n4000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n4000_grid_linear_18.json",
+      "bytes": 274265,
+      "sha256": "859b94c2a11fc3931d3d98cb07c0fd0c2abc82b93221e7e0850c060a143d06c5"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n4000_grid_linear_18.png",
+      "bytes": 157282,
+      "sha256": "f5a4cdc91be181a88d20dfdd0a6f1bc047ce9fb6d3e21dd62e16220875548af1"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n4000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n4000_grid_quantile_18.json",
+      "bytes": 274286,
+      "sha256": "d40e9955d81b2d9ae8800be9adfc4001846c79ba2d51e3864debe10177767364"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trace_level0_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_real/trace_level0_n4000_grid_quantile_18.png",
+      "bytes": 157823,
+      "sha256": "7ed358963e3ebc1dbf1781866a7d5c570308cd6b84dc2ee541891e563771268e"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real/trials.csv",
+      "after": "results/threshold_stability/threshold_study_results_real/trials.csv",
+      "bytes": 2307472,
+      "sha256": "442ac7e26e8d92ebbc9d58d9a4781d4c55dea2f3bd25b7b1e8f536316c376717"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_real.zip",
+      "after": "archive/bundles/threshold_study_results_real.zip",
+      "bytes": 2935386,
+      "sha256": "ac6da2f5d36a92c42424b1271c718938b967b7dcb77291ac00ec72e3d1dc1e5d"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/metadata.json",
+      "after": "results/threshold_stability/threshold_study_results_simulate/metadata.json",
+      "bytes": 1278,
+      "sha256": "24101210bdbb7e166d54c02932f240e04c30be4ab6c84b20e037271c456b669d"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/paired_vs_argmax.csv",
+      "after": "results/threshold_stability/threshold_study_results_simulate/paired_vs_argmax.csv",
+      "bytes": 106724,
+      "sha256": "89dd4b36138360e1b1b4d93201fe38835c6ed9dfefa5552b8d70df69ba3ad361"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/partition.csv",
+      "after": "results/threshold_stability/threshold_study_results_simulate/partition.csv",
+      "bytes": 108912,
+      "sha256": "334d9b86bf6a2011e62d87d6862e48b31abc5d235e43a373d6a20fef4ea0c1a4"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/stability_level0_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/stability_level0_n1000_exact_0.png",
+      "bytes": 95040,
+      "sha256": "8a3da66ea2dfddce220d7d80cba9114cb7b491e9f3a3527bd2bb89092aca65f6"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/stability_level0_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/stability_level0_n1000_grid_linear_18.png",
+      "bytes": 96330,
+      "sha256": "95313eea27ffe0b1130deb95d61178768e37ff9f7572d0f6a9ec0a0eafa69220"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/stability_level0_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/stability_level0_n1000_grid_quantile_18.png",
+      "bytes": 96890,
+      "sha256": "78470b0b82f972af0080dfa37b6ee34d504bc0e41d26d928739bb9cc8bf4592d"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/stability_level0_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/stability_level0_n200_exact_0.png",
+      "bytes": 93489,
+      "sha256": "b279f3933dd55d02ae1f6c7c81946af6703caa50d825f76f1b83287e649b4066"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/stability_level0_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/stability_level0_n200_grid_linear_18.png",
+      "bytes": 94416,
+      "sha256": "07facd3b68403535d7ebe86a02c286d498faa1ec9bd4820517b67940d5fb0af1"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/stability_level0_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/stability_level0_n200_grid_quantile_18.png",
+      "bytes": 95098,
+      "sha256": "a323b10aefd6781b187a781777c6f15fb927e0ea5bc97877b30acd830d19e344"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/stability_level0_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/stability_level0_n4000_exact_0.png",
+      "bytes": 96041,
+      "sha256": "a7cdd5c37fcb3151c8a3eede596d76198f2ba593454993a95b7f9fbb2dac84bc"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/stability_level0_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/stability_level0_n4000_grid_linear_18.png",
+      "bytes": 92691,
+      "sha256": "b7ea67cf8450d349266f8f4f65577eeb72ce2a221176afd4a0b182f1d338b3b7"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/stability_level0_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/stability_level0_n4000_grid_quantile_18.png",
+      "bytes": 97854,
+      "sha256": "550bb44e3eb302821b1cbee5f13e88b268ee9c03583d9e7e893fee1e2dc93528"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/summary.csv",
+      "after": "results/threshold_stability/threshold_study_results_simulate/summary.csv",
+      "bytes": 34480,
+      "sha256": "83145e28183cb41f7e8e6cdb329bdc407cb1494d03aa827345dba1cff6c248ac"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n1000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n1000_exact_0.json",
+      "bytes": 140021,
+      "sha256": "b7ee41e40610315a87ec502c589973323e9eaf42faae2559439f3e9699230c6a"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n1000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n1000_exact_0.png",
+      "bytes": 202255,
+      "sha256": "f2a092e29209da9893ca0aacc98a13368b47790ab4a8fc9861b354a05da850a4"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n1000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n1000_grid_linear_18.json",
+      "bytes": 76417,
+      "sha256": "30c2fab1a95fb20d91d427bae5c67b8f1c4209f69c09706eb43dc687aa8e133c"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n1000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n1000_grid_linear_18.png",
+      "bytes": 157713,
+      "sha256": "03768e4b7e5656f47a30ccba54ad066537308d037b6c78fb48f6cb4ec6897bbf"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n1000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n1000_grid_quantile_18.json",
+      "bytes": 76699,
+      "sha256": "a694a519f11f32c9c914db7aae2fa4cc9ac2f16065fbcc100708e1e276cbeabb"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n1000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n1000_grid_quantile_18.png",
+      "bytes": 158345,
+      "sha256": "841b46333c5340c7a3a364606d3421e0ed1ccda114ae63767aadcdb4058dff43"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n200_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n200_exact_0.json",
+      "bytes": 36476,
+      "sha256": "c412e1dbd7c77341aad1b9f5204667f52a82e805ae28dfe72f3fbf9f6cbf7bd3"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n200_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n200_exact_0.png",
+      "bytes": 185487,
+      "sha256": "789ed574e5726a8605b12f0885079704b719079445f47bb43c5d29edd3598b19"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n200_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n200_grid_linear_18.json",
+      "bytes": 24769,
+      "sha256": "aa629262eb3cb63f802e55c3d6ae2828ad2f833c3365b37cdad84473ddefbf01"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n200_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n200_grid_linear_18.png",
+      "bytes": 150296,
+      "sha256": "7c32ba42f2eab48ab7b95a13d0214a70a3e8d3dd641237b80714ef66238478d2"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n200_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n200_grid_quantile_18.json",
+      "bytes": 24912,
+      "sha256": "c073f93624ecb8892b3b36451eb9dd056a390a24116130eb47088c52254c9dc7"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n200_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n200_grid_quantile_18.png",
+      "bytes": 153397,
+      "sha256": "6db0e6b10156fd2ed166bdb698595e138b1afb45863398449ba8eceb6485e125"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n4000_exact_0.json",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n4000_exact_0.json",
+      "bytes": 531357,
+      "sha256": "973babacb44a93a84ca65d11e4b96a8cc8b7328b6ca34261dcbcd540b6a896d1"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n4000_exact_0.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n4000_exact_0.png",
+      "bytes": 184046,
+      "sha256": "056c1ddc064fa9cbb8a162cab8d901af65c7f36ca210a34bc18ce66258771be5"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n4000_grid_linear_18.json",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n4000_grid_linear_18.json",
+      "bytes": 272259,
+      "sha256": "911b8b0329322acdda08759e536392a258ac826904d4fa3ebe186b8ad6e4c89b"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n4000_grid_linear_18.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n4000_grid_linear_18.png",
+      "bytes": 151854,
+      "sha256": "bd7e1f667be1827e27422f5733944a1b5d590c849837f684275f1272fc179fe8"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n4000_grid_quantile_18.json",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n4000_grid_quantile_18.json",
+      "bytes": 272400,
+      "sha256": "101080b0412fb0d623dd41caa7505b2cd0b70b59f7f9a9eef4d76b932e92f4b7"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trace_level0_n4000_grid_quantile_18.png",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trace_level0_n4000_grid_quantile_18.png",
+      "bytes": 154764,
+      "sha256": "2e1df287c6b0ba769d90a7c7f401bd1f1b98f5d116edcbd0ee9741f0f8323fc3"
+    },
+    {
+      "before": "threshold_stability_study/threshold_study_results_simulate/trials.csv",
+      "after": "results/threshold_stability/threshold_study_results_simulate/trials.csv",
+      "bytes": 2155786,
+      "sha256": "eb0d3cda9fd837de5625195736ca20800203565b400c235516dbe586637392b0"
+    },
+    {
+      "before": "threshold_stability_study.zip",
+      "after": "archive/bundles/threshold_stability_study.zip",
+      "bytes": 15823,
+      "sha256": "29bf30c79c64b545f7a178ead452d83e5662d9ee4629423ce94051b24a1e2ab5"
+    }
+  ],
+  "verification": {
+    "files_present": 345,
+    "unchanged_payloads": 335,
+    "edited_sources_with_original_backup": [
+      "notebooks/epsilon_monte_carlo.ipynb",
+      "notebooks/global_metrics.ipynb",
+      "notebooks/threshold_curves.ipynb",
+      "experiments/thresholds/threshold_curves.py",
+      "notebooks/threshold_diagnostic_study.ipynb",
+      "experiments/thresholds/threshold_diagnostic_study.py",
+      "experiments/threshold_stability/README.md",
+      "experiments/threshold_stability/compare_thresholds.py",
+      "experiments/threshold_stability/inspect_plateau_switch.py",
+      "experiments/threshold_stability/test_study_logic.py"
+    ],
+    "notebook_outputs_preserved": true
+  }
+}

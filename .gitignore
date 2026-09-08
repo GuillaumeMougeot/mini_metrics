@@ -209,4 +209,16 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-dev/**
+# Curated development source/notes are versionable; local evidence stays local.
+dev/*
+!dev/README.md
+!dev/AGENTS.md
+!dev/EXPERIMENT_TEMPLATE.md
+!dev/cleanup-manifest.json
+!dev/experiments/
+dev/experiments/**
+!dev/experiments/**/
+!dev/experiments/**/*.py
+!dev/experiments/**/*.md
+# Local threshold timing and sensitivity artifacts (CI uploads its own reports)
+benchmark-results/
