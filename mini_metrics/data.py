@@ -89,6 +89,8 @@ _EMPTY_COLS: dict[type, Column] = {
 
 def _coerce_col(val: Any, tp: type, col_name: str, coerce: bool) -> Column:
     arr = np.asarray(val)
+    if arr.ndim != 1:
+        raise ValueError(f"Column {col_name!r} must be one-dimensional")
     if arr.size == 0:
         return _EMPTY_COLS[tp]
     if tp is str:
@@ -236,18 +238,26 @@ class MetricDF:
             data = data.to_dict()
         elif data is None and kwargs:
             data = kwargs
-        elif not isinstance(data, Mapping):
+        elif data is None:
             data = {}
+        elif not isinstance(data, Mapping):
+            raise TypeError("MetricDF requires a mapping, DataFrame, MetricDF, or source path")
 
         if kwargs and data is not kwargs:
             data = dict(data)
             data.update(kwargs)
 
         if data:
+            unknown = set(data) - set(COLUMNS)
+            if strict and unknown:
+                raise ValueError(f"Unknown schema columns: {sorted(unknown)}")
             for col, _ in REQUIRED_SCHEMA:
-                if col not in data:
+                if col not in data or data[col] is None:
                     raise RuntimeError(f"Invalid data schema:\nMissing column: {col}")
-            n = len(data["instance_id"])
+            ids = np.asarray(data["instance_id"])
+            if ids.ndim != 1:
+                raise ValueError("Column instance_id must be one-dimensional")
+            n = len(ids)
             for col, tp in SCHEMA:
                 if col in data and data[col] is not None:
                     arr = _coerce_col(data[col], tp, col, coerce)
@@ -302,27 +312,34 @@ class MetricDF:
         return self
 
     def __contains__(self, item: str) -> bool:
-        return hasattr(self, item) and getattr(self, item) is not None
+        return item in COLUMNS and getattr(self, item) is not None
 
     def __getitem__(self, item: int | slice | np.ndarray | Sequence[int] | str) -> Any:
         if isinstance(item, str):
+            if item not in COLUMNS:
+                raise KeyError(item)
             return getattr(self, item)
         if isinstance(item, slice):
             return self.slice(item.start, item.stop, item.step)
         if isinstance(item, (np.ndarray, Sequence)) and not isinstance(item, (str, bytes)):
-            arr = np.asarray(item)
-            if arr.dtype == np.bool_:
-                arr = np.flatnonzero(arr)
-            return self.take(arr)
+            return self.take(item)
+        if isinstance(item, (bool, np.bool_)):
+            raise TypeError("A scalar Boolean is not a row index")
         if isinstance(item, (int, np.integer)):
             return self.take([item])
         raise TypeError(f"Invalid index type for {type(self).__name__}: {type(item)}")
 
     def __setitem__(self, key: str, value: Any) -> None:
-        if hasattr(self, key):
-            setattr(self, key, value if isinstance(value, Column) else Column(value))
-        else:
-            raise KeyError(f"'{key}' is not a valid field of {type(self).__name__}")
+        if key not in COLUMNS:
+            raise KeyError(f"'{key}' is not a schema column")
+        data = self.to_dict()
+        data[key] = value
+        if key in ("instance_id", "level", "confidence", "threshold", "label", "prediction"):
+            for derived in ("correct", "prediction_made", "prediction_level"):
+                data.pop(derived)
+        validated = type(self)(data)
+        for col in self.columns:
+            setattr(self, col, getattr(validated, col))
 
     def _select_rows(self, index: slice | np.ndarray) -> Self:
         """Select existing columns without revalidating already-normalized values."""
@@ -338,8 +355,20 @@ class MetricDF:
         return self._select_rows(slice(start, end, step))
 
     def take(self, indices: np.ndarray | Sequence[int]) -> Self:
-        """Advanced indexing across all arrays."""
-        return self._select_rows(np.asarray(indices, dtype=np.int64))
+        """Select integer row positions or a Boolean mask of exactly len(self)."""
+        index = np.asarray(indices)
+        if index.ndim != 1:
+            raise ValueError("Row indices must be one-dimensional")
+        if index.dtype == np.bool_:
+            if len(index) != len(self):
+                raise IndexError("Boolean mask length must equal the number of rows")
+        elif index.size == 0:
+            index = np.empty(0, dtype=np.int64)
+        elif not np.issubdtype(index.dtype, np.integer):
+            raise TypeError("Row positions must be integers or a Boolean mask")
+        elif np.issubdtype(index.dtype, np.unsignedinteger) and np.any(index >= len(self)):
+            raise IndexError("Unsigned row position is out of range")
+        return self._select_rows(index)
 
     def copy(self) -> Self:
         return self.take(np.arange(len(self)))
@@ -430,17 +459,27 @@ class MetricDF:
         remaining = pd.RangeIndex(len(self)).drop(positions, errors=errors)
         return self.take(remaining.to_numpy())
 
-    def reset_index(self, *args, **kwargs) -> Self:
-        return self
+    def reset_index(self, *, drop: bool = False, inplace: bool = False) -> Self:
+        """Return a copy when discarding the implicit positional index."""
+        if not drop or inplace:
+            raise NotImplementedError("MetricDF only supports reset_index(drop=True, inplace=False)")
+        return self.copy()
 
     def reindex(self, *args, **kwargs) -> Self:
-        return self
+        raise NotImplementedError("MetricDF has no persistent index; use take() or slicing")
 
     def invalid_schema(self, msg: str) -> None:
         raise RuntimeError(f"Invalid data schema:\n{msg}")
 
     def validate(self, coerce: bool = True, strict: bool = True) -> None:
-        pass
+        """Validate shape and schema types, committing coercions only on success.
+
+        Explicit derived columns are preserved, as in construction. Use column
+        assignment or with_threshold to recompute derived values after changes.
+        """
+        validated = type(self)({col: getattr(self, col) for col in COLUMNS}, coerce=coerce, strict=strict)
+        for col in COLUMNS:
+            setattr(self, col, getattr(validated, col))
 
     def metadata(self) -> dict[str, Any]:
         return {

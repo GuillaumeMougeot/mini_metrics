@@ -44,6 +44,9 @@ the maintained Ruff/pytest scope. For changes there, run the relevant study logi
 checks and a small integration case; see [dev/README.md](dev/README.md). Historical
 notebooks and archives are not expected to satisfy current package checks.
 
+See the [container contract](docs/data-contract.md) and
+[threshold contract](docs/threshold-contract.md) before changing those APIs.
+
 ## Threshold monitoring
 
 Record runtime, traced memory and calibration sensitivity while iterating:

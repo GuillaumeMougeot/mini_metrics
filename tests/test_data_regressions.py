@@ -116,3 +116,103 @@ def test_internal_selection_preserves_columns_and_copy_is_independent():
 def test_incomplete_hierarchy_groups():
     df = frame(ids=(0, 1, 0, 2), levels=(2, 5, 5, 2), confidence=(0, 1, 1, 0))
     np.testing.assert_array_equal(df.prediction_level, [5, 5, 5, -1])
+
+
+@pytest.mark.parametrize("selection", [[1.9], ["1"], [[1]], np.array(1)])
+def test_take_rejects_non_integer_or_non_vector_positions(selection):
+    with pytest.raises((TypeError, ValueError)):
+        frame().take(selection)
+
+
+@pytest.mark.parametrize("mask", [[True], [True] * 7, [[True] * 6]])
+def test_mask_shape_and_length_are_checked(mask):
+    for select in (lambda df: df[mask], lambda df: df.take(mask)):
+        with pytest.raises((IndexError, ValueError)):
+            select(frame())
+
+
+def test_boolean_take_and_integer_take_preserve_selection_semantics():
+    df = frame()
+    mask = np.array([True, False, True, False, False, True])
+    for selected in (df[mask], df.take(mask), df.take([0, 2, -1])):
+        for col in df.columns:
+            np.testing.assert_array_equal(selected[col], np.asarray(df[col])[mask])
+    assert len(df.take([])) == 0
+    with pytest.raises(IndexError):
+        df.take([len(df)])
+    with pytest.raises(TypeError):
+        df[True]
+
+
+@pytest.mark.parametrize(
+    "column,value",
+    [("instance_id", 1), ("label", [["a"]] * 6), ("confidence", np.zeros((6, 1))), ("threshold", None)],
+)
+def test_constructor_rejects_malformed_columns(column, value):
+    data = frame().to_dict()
+    data[column] = value
+    with pytest.raises((ValueError, RuntimeError)):
+        MetricDF(data)
+
+
+def test_constructor_rejects_unknown_schema_and_unsupported_input():
+    data = frame().to_dict()
+    data["extra"] = np.arange(6)
+    with pytest.raises(ValueError, match="extra"):
+        MetricDF(data)
+    assert "extra" not in MetricDF(data, strict=False)
+    with pytest.raises(TypeError):
+        MetricDF([1, 2, 3])
+
+
+def test_validate_checks_types_and_does_not_partially_apply_coercions():
+    df = frame()
+    df.label = np.array([1] * 6)
+    df.threshold = np.array([0.5])
+    with pytest.raises(ValueError):
+        df.validate()
+    np.testing.assert_array_equal(df.label, [1] * 6)
+    df.threshold = np.full(6, 0.5)
+    with pytest.raises(RuntimeError):
+        df.validate(coerce=False)
+    df.validate()
+    np.testing.assert_array_equal(df.label, ["1"] * 6)
+    df.validate(coerce=False)
+
+
+def test_column_assignment_is_atomic_and_recomputes_predictions():
+    df = frame()
+    before = df.copy()
+    with pytest.raises(ValueError):
+        df["confidence"] = [0.9]
+    for col in df.columns:
+        np.testing.assert_array_equal(df[col], before[col])
+    df["confidence"] = [0.9] * 6
+    np.testing.assert_array_equal(df.prediction_made, [True] * 6)
+    np.testing.assert_array_equal(df.prediction_level, [0] * 6)
+    df["prediction"] = ["wrong"] * 6
+    np.testing.assert_array_equal(df.correct, [-1] * 6)
+    with pytest.raises(KeyError):
+        df["copy"] = [0] * 6
+    with pytest.raises(KeyError):
+        df["copy"]
+    assert "copy" not in df
+
+
+def test_index_compatibility_methods_are_explicit():
+    df = frame()
+    with pytest.raises(NotImplementedError):
+        df.reindex(index=[2, 1, 0])
+    with pytest.raises(NotImplementedError):
+        df.reset_index()
+    with pytest.raises(NotImplementedError):
+        df.reset_index(drop=True, inplace=True)
+    copied = df.reset_index(drop=True)
+    assert copied is not df
+    np.testing.assert_array_equal(copied.instance_id, df.instance_id)
+
+
+def test_unsigned_indices_do_not_wrap_into_negative_positions():
+    with pytest.raises(IndexError):
+        frame().take(np.array([np.iinfo(np.uint64).max], dtype=np.uint64))
+    np.testing.assert_array_equal(frame().take(np.array([0, 2], dtype=np.uint64)).instance_id, [0, 1])
