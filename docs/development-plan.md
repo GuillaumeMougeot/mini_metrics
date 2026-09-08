@@ -27,10 +27,11 @@ code; do not make notebooks or local model-output archives prerequisites for CI.
 | Done | Reconcile qualitative rules and instruction entry points | Root `AGENTS.md` and `dev/AGENTS.md` now contain the adapted rules; the original mini_metrics `.agents/rules` directory was empty. Verify instruction discovery in the next fresh agent session. |
 | Done | Document threshold semantics | [Threshold contract](threshold-contract.md) records exact/sparse routing, acceptance, class support, coordinates, ties, bootstrap and input limits with links to regression tests. |
 | Done | Review and reduce experiments | [Experiment review](../dev/experiments/README.md) retains one canonical paired study, freezes focused follow-ups, and records deletion of three overlapping scripts and two notebooks with verified hashes; all retained experiment source is frozen. No shared research framework is needed. |
+| Done | Define container boundaries | [Container contract](data-contract.md) specifies validated indexing, structural validation, atomic column replacement, explicit unsupported pandas operations, and type-stub alignment. |
 | Ongoing | Preserve the frozen research snapshot | Use the frozen study for reference and replay; develop new questions in separately named studies. Preserve frozen replay scripts and provenance. Before new use of curve annotations, surface suppressed optimizer errors; repair plotting API drift only when needed. Do not adopt every historical notebook. |
 | Deferred | Resolve one remaining exact-path question if justified | Predeclare a single comparison, potentially zero versus minimum-observed-confidence boundary placement. Keep bootstrap disabled by default given the completed follow-up. Pair cohorts and report F1 losses and P/R/coverage shifts alongside dispersion. Independent outer partitions are required for generalization claims; broad sweeps are not an automatic next task. |
-| Follow-up | Optimize measured bottlenecks | Profile representative tied/continuous and long-tail workloads at several sizes. Change one bottleneck at a time; preserve independent oracle agreement and record comparable before/after runtime, memory and evaluation counts. Avoid abstraction or vectorization without a measured benefit. |
-| Done | Stabilize CI and review scope | Hosted Python 3.13/3.14 tests, lint and monitoring passed; all three artifacts uploaded in [run 34225390622](https://github.com/GuillaumeMougeot/mini_metrics/actions/runs/34225390622). Add deterministic gates for discovered failures; only adopt tighter timing gates after measuring runner variance. Keep large statistical runs opt-in or scheduled, not ordinary test prerequisites. |
+| Follow-up | Optimize measured bottlenecks | Monitor schema 3 now includes loading, slicing, splitting and ordered/interleaved hierarchical threshold updates. Profile a demonstrated bottleneck before changing algorithms. Change one bottleneck at a time; preserve independent oracle agreement and record comparable before/after runtime, memory and evaluation counts. Avoid abstraction or vectorization without a measured benefit. |
+| Done | Stabilize CI and review scope | Hosted Python 3.13/3.14 tests, lint and monitoring passed; all three artifacts uploaded in [run 34225632539](https://github.com/GuillaumeMougeot/mini_metrics/actions/runs/34225632539). Add deterministic gates for discovered failures; only adopt tighter timing gates after measuring runner variance. Keep large statistical runs opt-in or scheduled, not ordinary test prerequisites. |
 
 Work packages should be separate, small changes with a concrete before/after
 behavior, relevant validation, and explicit remaining limits. Research findings
@@ -54,7 +55,7 @@ Completed commits, in dependency order (`dcb3773`, `3838b32`, `ebe51a3`, `9ba2b8
    supplies the package API required by the frozen bootstrap replay scripts.
 4. CI artifacts and scheduled monitoring, with timing advisory on shared runners.
 
-The local monitor baseline is `benchmark-results/data-fixes-final.json` (ignored).
+The local monitor baseline is `benchmark-results/container-control-after.json` (ignored, schema 3).
 It identifies the source and environment used; compare only compatible reports.
 The subsequent regression audit against `9fe746e` found four container bugs:
 incorrect instance grouping for prediction levels, ignored slice steps, no-op row
@@ -62,15 +63,15 @@ deletion, and incomplete string coercion. All are fixed in `9cddf69`, protected 
 22 data-container regressions. Internal row selection avoids revalidating existing
 normalized columns. Unsupported column/in-place deletion now raises explicitly.
 
-Local validation: **317 tests pass on Python 3.13.7 and 3.14.5**, Ruff passes, and
-the final monitor produced 20 cost measurements and 144 valid calibration
+Previous checkpoint validation: **318 tests pass on Python 3.13.7 and 3.14.5**, Ruff passes, and
+the schema-2 monitor produced 20 cost measurements and 144 valid calibration
 selections. Sensitivity outputs were identical before and after the container
 fixes. Runtime ratios ranged from .619 to 1.34 and traced-memory ratios from .796
 to 1.0 against `data-fixes-before.json`, within the existing 1.5x limit. These are
 local measurements, not hosted performance guarantees.
 
-Hosted CI and artifact uploads were verified for `e0cd8ad` in
-[run 34225390622](https://github.com/GuillaumeMougeot/mini_metrics/actions/runs/34225390622):
+Hosted CI and artifact uploads were verified for `3ec4c09` in
+[run 34225632539](https://github.com/GuillaumeMougeot/mini_metrics/actions/runs/34225632539):
 both Python test jobs, lint and threshold monitoring succeeded; the two JUnit
 artifacts and monitor report were present.
 
@@ -80,6 +81,28 @@ remains an explicit Python option. This follows the reporting objective and the
 focus of the studies, not a claim of universal superiority over balanced F1.
 Further experiments and performance changes are deferred until there is a
 specific justified question or measured bottleneck. Retained studies stay frozen.
+
+## Container boundary checkpoint
+
+The follow-up adds 17 boundary tests (39 container tests total): malformed masks
+and indices, unsigned overflow, schema dimensions and unknown columns, explicit
+validation, atomic mutation, and unsupported index operations. **335 tests pass
+on Python 3.13 and 3.14**, Ruff passes, and the nine frozen-study logic checks pass.
+The supported behavior is in [the container contract](data-contract.md).
+
+Monitor schema 3 covers 40 workloads and 144 calibration selections. An isolated
+copy of the preceding package was measured immediately before this version,
+using identical monitor source, dependencies, thread settings and 15 repeats.
+Runtime ratios were .736–1.474 and traced-memory ratios .991–1.002, within the
+existing 1.5x limit. Thresholds, F1 and coverage were unchanged; precision differed
+only by rounding below 4e-16. Initial five-repeat comparisons exceeded timing
+limits even for unchanged curve workloads; those reports are retained as
+`container-contract-*.json`. Use the paired `container-control-*.json` reports
+for this checkpoint, and treat host timing as advisory.
+
+No new statistical experiment or default change is needed. Next work should
+address a demonstrated bottleneck or a concrete user requirement. Frozen study
+sources and reviewed goldens remain unchanged.
 
 ## Experiment lifecycle
 

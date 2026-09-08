@@ -34,11 +34,15 @@ tolerance. Its reference F1 uses explicit counts, independently of package F1.
 
 ## Performance and sensitivity measurements
 
-The default monitor performs 20 measurements: exact Macro/Micro curves and
+The default monitor performs 40 measurements: exact Macro/Micro curves and
 Macro/Micro/generic optimizers, at 256 and 2,048 rows, with both tied and continuous
 confidences. The generic criterion has the same objective but disables the fast
 path, making it a useful cost reference; its sparse resolution is different.
-Data construction and imports are excluded. Each measurement has a warmup, five
+Five additional workloads cover in-memory CSV parsing, strided slicing,
+instance-grouped splitting, and threshold application on ordered and interleaved
+two-level hierarchies (2n rows for n source instances). CSV text is prepared
+outside measurement; parsing is timed, disk I/O is not. Other workload
+construction and imports are excluded. Each measurement has a warmup, five
 wall-clock samples, and a separate traced-allocation run. JSON retains raw samples,
 medians, peak traced bytes, environment versions and source hashes. Traced memory
 is not process RSS and may omit allocations made by native dependencies.
@@ -122,5 +126,8 @@ The original paired study follow-up is documented in
 See [bootstrap findings](bootstrap_findings.md) for the completed paired
 comparison: benefits were modest and inconsistent, so the default stays disabled.
 
-Monitor schema 2 adds P/R and threshold dispersion summaries. Schema 1 reports
-are incompatible baselines; capture a fresh baseline after this change.
+Monitor schema 3 retains P/R and threshold dispersion summaries and adds
+container workloads. Schema 1/2 reports are incompatible baselines; capture a
+fresh baseline after this change. The local comparison for container hardening is
+`benchmark-results/container-control-before.json` versus
+`benchmark-results/container-control-after.json`.

@@ -6,6 +6,7 @@ Timing is advisory unless --baseline is explicitly supplied on comparable hardwa
 
 import argparse
 import hashlib
+import io
 import json
 import platform
 import statistics
@@ -101,7 +102,22 @@ def performance(sizes, repeats):
     for n in sizes:
         for tied in (False, True):
             df = dataset(n, tied=tied)
+            csv_text = df.to_pandas().to_csv(index=False)
+            hierarchy_data = {
+                k: np.repeat(v, 2)
+                for k, v in df.to_dict().items()
+                if k not in ("correct", "prediction_made", "prediction_level")
+            }
+            hierarchy_data["level"] = np.tile([0, 1], n)
+            hierarchy_data["confidence"][1::2] *= 0.8
+            hierarchy = MetricDF(hierarchy_data)
+            interleaved = hierarchy.take(np.random.default_rng(73).permutation(len(hierarchy)))
             for name, fn in (
+                ("load_csv", lambda: MetricDF.from_source(io.StringIO(csv_text))),
+                ("slice_rows", lambda: df[::2]),
+                ("split_instances", lambda: hierarchy.split((0.8, 0.2), seed=42)),
+                ("threshold_hierarchy", lambda: hierarchy.with_threshold(0.5)),
+                ("threshold_interleaved", lambda: interleaved.with_threshold(0.5)),
                 ("curve_macro", lambda: compute_f1_threshold_curve(df)),
                 ("curve_micro", lambda: compute_f1_threshold_curve(df, macro=False)),
                 ("optimizer_macro", lambda: OptimalConfidenceThreshold().compute(df, verbose=0)),
@@ -244,7 +260,7 @@ def main():
         parser.error("Require repeats >= 3, trials >= 2, sizes >= 2, finite max-ratio > 1")
     root = Path(__file__).resolve().parents[1]
     report = dict(
-        schema=2,
+        schema=3,
         configuration=dict(
             sizes=args.sizes,
             repeats=args.repeats,
