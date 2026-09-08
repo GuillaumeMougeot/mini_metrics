@@ -37,6 +37,32 @@ behavior, relevant validation, and explicit remaining limits. Research findings
 can justify a later policy change; they should not be mixed into a directory
 reorganization or silently change defaults.
 
+## Stable threshold checkpoint
+
+The implementation checkpoint keeps epsilon `.01`, rejection-rate selection and
+zero bootstrap resamples as defaults. No new statistical sweep is required.
+
+Commit in dependency order:
+
+1. Core selection and API contracts: preserve positional `main()` arguments,
+   validate confidence inputs in both coordinate modes, document heuristic bounds
+   and the experimental naive span, and retain the audited single-cell golden change.
+2. Continuous monitor and regressions: independent F1 oracle, sparse evaluation
+   budgets, exact calibration tolerance, public P/R measurements and threshold,
+   P/R/F1/coverage dispersion. Monitor schema 2 requires a fresh baseline.
+3. Exact-only bootstrap option and focused tests, disabled by default. This
+   supplies the package API required by the frozen bootstrap replay scripts.
+4. CI artifacts and scheduled monitoring, with timing advisory on shared runners.
+
+The local monitor baseline is `benchmark-results/stable-schema2.json` (ignored).
+It identifies the source and environment used; compare only compatible reports.
+Validation on 2026-09-08: 295 tests passed on Python 3.13.7 and 3.14.5;
+Ruff passed, all nine frozen-study logic checks passed, and the default monitor
+produced 20 cost measurements and 144 valid calibration selections. Python 3.14
+also produced JUnit XML. Workflow YAML and the version matrix were checked.
+These local checks validate the configuration's commands. Hosted Actions execution and artifact upload must still be observed
+after these commits are pushed; local validation cannot certify those services.
+
 ## Experiment lifecycle
 
 1. Write the question, comparator, protocol and acceptance margins using
