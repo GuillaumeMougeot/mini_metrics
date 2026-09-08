@@ -108,3 +108,46 @@ The remaining profile includes substantial row movement in `_select_rows` and
 `group_map`. Reprofile that cost before attempting further changes: shared slices,
 copy independence and custom metric behavior must remain intact. No statistical
 follow-up is required for this computational improvement.
+
+## Complete CLI baseline
+
+The earlier full-file numbers above measure individual operations, not the
+complete `mm_metrics` workload. Performance prioritization now starts with
+`benchmarks.cli_workloads`: a fresh Python subprocess runs the normal CLI entry
+point through loading, all default metrics and CSV export. Quiet mode disables
+terminal rendering. The default workload reports optimal thresholds but does not
+apply them; `--optimal` separately adds calibration splitting and application.
+
+Local Python 3.13.7 runs on the current grouping implementation used hash seed 0,
+OMP/OpenBLAS thread counts 1, three timed subprocesses and a separate complete
+cProfile run. No metric filters or subsampling were used.
+
+| Input | Wall-clock samples (seconds) | Median | Profiled run (excluded from median) |
+|---|---|---:|---:|
+| Flat Lepidoptera, 632,913 rows | 22.813, 24.660, 24.610 | 24.610 | 30.454 |
+| Hierarchical Lepidoptera, 1,898,739 rows | 45.584, 55.544, 56.780 | 55.544 | 71.669 |
+
+Artifacts are in `benchmark-results/cli-flat-baseline/` and
+`benchmark-results/cli-hierarchical-baseline/`: reports record commands, input and
+source hashes, environment metadata, all timings and CSV hashes; each run retains
+its exported CSV and logs. Exports matched byte-for-byte across repetitions and
+profiling for each input. This checks the CLI's rounded output, not full numerical
+equivalence. The small `cli-smoke/` run also exercised `--optimal` with profiling.
+All 364 tests and maintained Ruff checks passed. No production behavior or golden
+files changed.
+
+The complete hierarchical profile identifies additional priorities: Theil's U
+and its dense confusion matrix, alongside shared string grouping and repeated
+row/container construction (206,622 `_select_rows` calls). Inspecting only the
+F1 optimizer would miss the confusion-matrix workload entirely. The code allocates
+a dense class-by-class matrix, so inspect peak process memory as well as time
+before considering a count-based alternative. Preserve Theil's U conventions.
+
+Treat profiles as diagnostic: cumulative entries overlap, profiler overhead
+changes Python-heavy costs, and the flat profile contains inconsistent nested
+caller/callee totals around threading. Resolve or cross-check that attribution
+before making precise per-function time-share claims. Timing evidence comes from
+the separate unprofiled subprocesses. The hierarchical samples also show sizable
+variation, so a future speedup claim needs a comparable rerun. Input hashing warms
+the filesystem cache; these are not cold-disk measurements. Peak RSS is not yet
+captured. Statistical work remains paused.

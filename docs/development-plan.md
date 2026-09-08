@@ -38,6 +38,14 @@ behavior, relevant validation, and explicit remaining limits. Research findings
 can justify a later policy change; they should not be mixed into a directory
 reorganization or silently change defaults.
 
+Performance prioritization must use complete `mm_metrics` runs on representative
+`dev/raw` files, including loading, all enabled metrics and output generation.
+Use the [CLI benchmark runner](../benchmarks/README.md#full-real-workloads) for
+fresh-process timings and complete profiles. Function-level measurements explain
+hotspots but do not substitute for end-to-end before/after evidence. Establish
+this baseline before deciding whether string checks or row construction deserve
+the next optimization; statistical policy work remains paused.
+
 ## Stable threshold checkpoint
 
 The implementation checkpoint keeps epsilon `.01`, rejection-rate selection and

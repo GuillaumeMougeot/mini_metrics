@@ -134,6 +134,36 @@ fresh baseline after this change. The local comparison for container hardening i
 
 ## Full real workloads
 
-Use the opt-in `benchmarks.real_workloads` runner for large local CSVs. See
+Use complete `mm_metrics` pipelines as the primary performance workload on large
+local CSVs, including interpreter startup/imports, parsing, all default metrics,
+table construction and CSV export:
+
+```bash
+MPLCONFIGDIR=/tmp/mini-metrics-mpl OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 PYTHONHASHSEED=0 \
+  .venv/bin/python -m benchmarks.cli_workloads \
+  --input dev/raw/hierarchical_global_lepi_mini_metric.csv \
+  --output-dir benchmark-results/cli-hierarchical-before --repeats 3 --profile
+```
+
+The runner invokes `python -m mini_metrics.metrics`, which uses the same `run()`
+entry point as `mm_metrics`. Each timed sample starts a fresh subprocess; an
+additional complete cProfile run is excluded from the timing median. Add
+`--optimal` to include calibration splitting, threshold selection and application.
+Runs use quiet mode: CSV construction/export is included, terminal table rendering
+and progress display are disabled.
+Default and optimal runs are distinct workloads: compare identical arguments.
+The CLI currently disables hierarchical metric formulas, even on multilevel inputs;
+the benchmark preserves this normal CLI behavior and uses no metric filter.
+
+Use fresh output directories. Reports retain commands, source/input hashes,
+dependency/platform/thread metadata, timings, logs and exported CSVs. CSV hashes
+must match across repetitions and the profiled run. Compare exports across code
+versions too; hashes establish byte equality at CLI output precision, not full
+numerical equivalence. Hashing the input before timing warms the filesystem cache;
+these are not cold-disk measurements. Process peak RSS is not measured here.
+
+Use `benchmarks.real_workloads` for supplementary isolated loading, Macro-F1 and
+threshold measurements, and `threshold_monitor` for correctness, sensitivity and
+traced memory. Isolated speedups alone do not establish a faster CLI pipeline. See
 [performance findings](performance-findings.md) for commands, measured speedups,
 profile evidence and limitations. Statistical policy studies remain deferred.
