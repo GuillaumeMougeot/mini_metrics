@@ -34,12 +34,18 @@ def group_indices(arr: np.ndarray | Sequence[Any]) -> dict[Any, np.ndarray]:
     arr = np.asarray(arr)
     if len(arr) == 0:
         return {}
-    order = np.argsort(arr, kind="stable")
-    sorted_arr = arr[order]
+    # Sorting integer codes avoids repeatedly comparing long class strings.
+    # Factorization overhead loses on small arrays; keep direct sorting there
+    # and for other key types, including missing values.
+    sortable = arr
+    if len(arr) >= 1024 and arr.dtype.kind in ("O", "U") and all(isinstance(value, str) for value in arr):
+        sortable, _ = pd.factorize(arr, sort=True)
+    order = np.argsort(sortable, kind="stable")
+    sorted_arr = sortable[order]
     diffs = np.flatnonzero(sorted_arr[:-1] != sorted_arr[1:]) + 1
     starts = np.concatenate(([0], diffs))
     ends = np.append(diffs, len(arr))
-    return {k: order[s:e] for k, s, e in zip(sorted_arr[starts], starts, ends)}
+    return {k: order[s:e] for k, s, e in zip(arr[order[starts]], starts, ends)}
 
 
 SCHEMA = (

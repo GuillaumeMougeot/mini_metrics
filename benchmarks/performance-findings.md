@@ -61,7 +61,50 @@ The paired 15-repeat `encoding-control-before.json` and
 the control package was copied from the preceding commit. The existing 1.5x
 runtime/traced-memory gate passed, and sensitivity outputs matched exactly.
 
-The next measured candidate is class grouping during ordinary Macro-F1 evaluation
-(the hierarchical after-run still takes about 4.6 seconds). Profile that path
-separately before changing shared grouping behavior. Do not combine that work
-with a statistical policy adjustment or expand the frozen studies.
+The follow-up below addresses ordinary Macro-F1 grouping. Statistical policies
+and frozen studies remain unchanged.
+
+
+## Shared class-grouping follow-up
+
+A dedicated hierarchical Macro-F1 profile attributed 3.07s of 6.73s to six
+string sorts inside `group_indices` (3.56s including its other work). The shared
+helper now factorizes homogeneous strings into integer codes before stable
+sorting. Returned keys remain sorted and each group's original row order is
+preserved. Numeric, mixed-object and missing-value keys retain the original path.
+No metric formulas, per-class weighting or custom computation dispatch changed.
+The final dedicated profile reduced total grouping time from 3.56s to 2.27s;
+Python string-type checks now contribute noticeably under the profiler. Both
+profiles are retained as `benchmark-results/macro-grouping-{before,after}.prof`.
+
+Factorization has overhead: a seven-batch size sweep measured new/old grouping
+ratios of 2.10 at 64 rows, 1.21 at 256, .89 at 512, .74 at 1,024 and .58 at 2,048.
+The optimization therefore starts at 1,024 rows; smaller inputs retain direct
+sorting. This is a measured conservative crossover, not a universal optimal size.
+
+Full-file medians with three samples and the same settings as above:
+
+| Input | Macro-F1 seconds before | Final guarded implementation | Reduction |
+|---|---:|---:|---:|
+| Flat Lepidoptera, 632,913 rows | 1.754 | 1.281 | 27% |
+| Hierarchical Lepidoptera, 1,898,739 rows | 5.065 | 2.836 | 44% |
+
+All per-level aggregate F1 values and selected thresholds matched exactly.
+`grouping-{flat,hier}-before.json` and `grouping-{flat,hier}-final.json` retain the
+full measurements, input hashes and source hashes under `benchmark-results/`.
+The intermediate `*-after.json` runs predate the small-array guard and are retained
+as separate evidence. Untouched loading/threshold workloads fluctuated between
+runs; these are local measurements, not hardware-independent speed guarantees.
+
+Twenty-nine new grouping tests check key/row ordering and per-class ordinary F1,
+Micro-F1, balanced F1, precision and recall against independent group mappings.
+All **364 tests passed on Python 3.13 and 3.14**; Ruff passed and goldens are
+unchanged. The paired 15-repeat `grouping-control-before.json` and
+`grouping-control-after.json` monitor reports passed the existing 1.5x gate across
+40 workloads: runtime ratios .701–1.469, traced-memory ratios .992–1.008. All 144
+sensitivity records matched exactly. Full-file peak RSS was not measured.
+
+The remaining profile includes substantial row movement in `_select_rows` and
+`group_map`. Reprofile that cost before attempting further changes: shared slices,
+copy independence and custom metric behavior must remain intact. No statistical
+follow-up is required for this computational improvement.
