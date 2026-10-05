@@ -216,3 +216,31 @@ def test_unsigned_indices_do_not_wrap_into_negative_positions():
     with pytest.raises(IndexError):
         frame().take(np.array([np.iinfo(np.uint64).max], dtype=np.uint64))
     np.testing.assert_array_equal(frame().take(np.array([0, 2], dtype=np.uint64)).instance_id, [0, 1])
+
+
+@pytest.mark.parametrize(
+    ("column", "value", "message"),
+    [
+        ("label", float("nan"), "missing"),
+        ("prediction", None, "missing"),
+        ("confidence", float("nan"), r"\[0, 1\]"),
+        ("confidence", 1.2, r"\[0, 1\]"),
+        ("threshold", -0.1, r"\[0, 1\]"),
+    ],
+)
+def test_construction_rejects_missing_and_out_of_range_inputs(column, value, message):
+    from mini_metrics.data import MetricDF
+
+    data = {
+        "instance_id": [0, 1],
+        "filename": ["a", "b"],
+        "level": [0, 0],
+        "label": ["x", "y"],
+        "prediction": ["x", "x"],
+        "confidence": [0.2, 0.9],
+        "threshold": [0.0, 0.0],
+    }
+    MetricDF({key: list(values) for key, values in data.items()})
+    data[column] = [data[column][0], value]
+    with pytest.raises(ValueError, match=message):
+        MetricDF(data)

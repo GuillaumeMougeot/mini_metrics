@@ -15,7 +15,8 @@ discards them. Column order follows the fixed schema.
 `coerce=True` normalizes schema types, including every element of string columns.
 `coerce=False` rejects incompatible types. `validate()` performs the same shape
 and type checks and applies coercions only after the whole container passes.
-These checks do not promise confidence-range validation or verification that
+Missing values in string columns and confidence or threshold values outside
+`[0, 1]` (including NaN) raise `ValueError`. These checks do not verify that
 explicitly supplied derived columns agree with their source columns. Imported
 `prediction_level`, `prediction_made` and `correct` values are preserved.
 

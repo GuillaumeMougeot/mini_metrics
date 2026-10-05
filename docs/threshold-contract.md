@@ -113,7 +113,7 @@ and `test_sparse_search_ignores_bootstrap_without_extra_evaluations`.
 
 Selectors require finite, distinct confidence positions in `[0,1]`, matching
 one-dimensional score arrays, and finite nonnegative epsilon. These requirements
-do not imply that every data-container constructor validates confidence ranges.
+match the container's construction checks for confidence and threshold ranges.
 Do not feed sparse samples to the exact interval selector. The standalone curve
 helper does not perform public per-level dispatch.
 

@@ -94,7 +94,8 @@ _EMPTY_COLS: dict[type, Column] = {
 
 
 def _coerce_col(val: Any, tp: type, col_name: str, coerce: bool) -> Column:
-    arr = np.asarray(val)
+    # Object dtype for strings: np.asarray(["x", nan]) would silently stringify the NaN.
+    arr = np.asarray(val, dtype=object) if tp is str else np.asarray(val)
     if arr.ndim != 1:
         raise ValueError(f"Column {col_name!r} must be one-dimensional")
     if arr.size == 0:
@@ -102,6 +103,8 @@ def _coerce_col(val: Any, tp: type, col_name: str, coerce: bool) -> Column:
     if tp is str:
         all_strings = all(isinstance(x, str) for x in arr.ravel())
         if not all_strings:
+            if any(x is None or x is pd.NA or (isinstance(x, float) and np.isnan(x)) for x in arr.ravel()):
+                raise ValueError(f"Column {col_name!r} contains missing values")
             if not coerce:
                 raise RuntimeError(f"Invalid data schema:\nColumn {col_name} must contain only strings")
             arr = np.fromiter((str(x) for x in arr.ravel()), dtype=object, count=arr.size).reshape(arr.shape)
@@ -279,6 +282,11 @@ class MetricDF:
                 setattr(self, col, _EMPTY_COLS[tp])
 
         if len(self) > 0:
+            for col in ("confidence", "threshold"):
+                values = getattr(self, col)
+                # Comparisons are False for NaN, so this also rejects missing values.
+                if not np.all((values >= 0.0) & (values <= 1.0)):
+                    raise ValueError(f"Column {col!r} must contain finite values in [0, 1]")
             if self.known_label is None:
                 self.known_label = COLUMNS_DEFAULT.known_label(self)
             if self.prediction_made is None:
