@@ -158,3 +158,25 @@ def test_per_class_table_keeps_each_level_and_predicted_only_classes():
     assert sorted(table.index) == [(lvl, cls) for lvl in (0, 1) for cls in ("x", "y", "z")]
     assert table.loc[(1, "y"), "recall"] == 0.5
     assert table.loc[(1, "z"), "precision"] == 0.0 and math.isnan(table.loc[(1, "z"), "recall"])
+
+
+def test_evaluate_file_accepts_per_level_thresholds_as_arrays():
+    import numpy as np
+    import pandas as pd
+
+    from mini_metrics.data import MetricDF
+    from mini_metrics.metrics import evaluate_file
+
+    rows = [
+        dict(
+            instance_id=i, filename=f"f{i}", level=lvl, label="a", prediction="a", confidence=c, threshold=0.0
+        )
+        for i, c in enumerate([0.3, 0.6])
+        for lvl in (0, 1)
+    ]
+    df = MetricDF(pd.DataFrame(rows))
+    kwargs = dict(simple=True, hierarchical=False, verbose=0, pattern="^coverage$")
+    expected = evaluate_file(df, threshold=[0.5, 0.2], **kwargs)
+    assert expected["coverage"] == {0: 0.5, 1: 1.0}
+    for threshold in (np.array([0.5, 0.2]), (0.5, 0.2), np.array([0.5, 0.2], dtype=np.float32)):
+        assert evaluate_file(df, threshold=threshold, **kwargs) == expected

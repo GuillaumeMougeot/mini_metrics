@@ -753,6 +753,9 @@ def evaluate_file(
             threshold = float(opt_threshold)
 
     if threshold is not None:
+        # Per-level thresholds: arrays/tuples must not reach with_threshold's per-row branch.
+        if isinstance(threshold, (np.ndarray, np.generic, tuple)):
+            threshold = np.asarray(threshold).tolist()
         lvls = sorted(set(df.level))
         if isinstance(threshold, list) and len(threshold) == 1:
             threshold = threshold[0]
