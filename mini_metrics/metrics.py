@@ -241,7 +241,7 @@ class MacroBalancedF1(MacroF1):
 
 # Theil's U / Uncertainty coefficient
 class TheilU(Metric):
-    """Theil's U metric."""
+    """Theil's U over all predictions; acceptance thresholds are ignored."""
 
     name: str = "theilU"
     columns: tuple[str, ...] = (

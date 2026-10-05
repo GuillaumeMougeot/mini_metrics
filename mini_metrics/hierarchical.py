@@ -1,3 +1,5 @@
+"""Experimental rank-distance metrics; unsupported and disabled in the CLI."""
+
 from collections import Counter, OrderedDict
 from itertools import chain
 from typing import cast

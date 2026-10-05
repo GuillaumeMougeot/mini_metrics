@@ -68,6 +68,24 @@ The evaluation input file (CSV) must match the following schema:
 - `prediction_made` (`bool`): Whether prediction confidence exceeded the threshold.
 - `correct` (`int`): Indication of classification correctness (`-1` incorrect, `0` abstain, `1` correct).
 
+## Metric scope
+
+Metrics are computed independently at each hierarchy `level`; evaluate genus or
+family performance by supplying those levels' labels and predictions. Macro
+averages give equal weight to every class with nonzero support, where support is:
+
+| Metric | Classes included |
+| --- | --- |
+| Macro accuracy | True classes with at least one accepted instance |
+| Macro precision | Classes with at least one accepted prediction |
+| Macro recall | True classes, including fully rejected classes |
+| Macro F1 | Union of classes with true support or accepted predicted support |
+
+`theilU` is computed on all predictions and ignores acceptance thresholds.
+With `known_only`, both evaluation and `--optimal` calibration use only rows with
+`known_label`. The rank metrics in `mini_metrics/hierarchical.py` are experimental,
+disabled in the CLI and not a supported hierarchical evaluation.
+
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and checks,
