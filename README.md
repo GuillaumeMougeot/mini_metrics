@@ -81,6 +81,19 @@ averages give equal weight to every class with nonzero support, where support is
 | Macro recall | True classes, including fully rejected classes |
 | Macro F1 | Union of classes with true support or accepted predicted support |
 
+Per-class results report undefined values (no accepted predictions, or a class
+with neither true nor accepted predicted support) as NaN with weight 0; macro
+per-class weights are 0/1 support indicators, while `micro_*` weights are counts.
+`micro_accuracy` and `micro_precision` are the same quantity (correct accepted
+over accepted); `micro_recall` divides by all rows. When a supplied `correct`
+column credits predictions whose name differs from the label, an unsupported
+precision or recall is combined into F1 as 1.0, as in earlier versions.
+
+`known_label` defaults to true for every row when not supplied, so open-set data
+must provide it for `known_only` and `vocabulary_coverage` to be meaningful.
+Labels and predictions are compared as strings; pass consistently formatted
+string identifiers (for example, `"0123"` and `123` differ).
+
 `theilU` is computed on all predictions and ignores acceptance thresholds.
 With `known_only`, both evaluation and `--optimal` calibration use only rows with
 `known_label`. The rank metrics in `mini_metrics/hierarchical.py` are experimental,
