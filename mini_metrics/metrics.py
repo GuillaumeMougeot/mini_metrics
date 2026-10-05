@@ -732,7 +732,7 @@ def evaluate_file(
             crit=opt_crit,
             use_quantiles=use_quantiles,
             eps=eps,
-        )(calib, verbose=verbose)
+        )(calib, filter=known_only, verbose=verbose)
         if not per_class:
             precalculated["optimal_confidence_threshold"] = opt_threshold
         if isinstance(opt_threshold, dict):

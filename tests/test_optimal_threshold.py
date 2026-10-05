@@ -509,3 +509,25 @@ def test_evaluate_file_defaults_to_macro_f1_and_retains_explicit_balanced(monkey
     assert default == explicit
     metrics.evaluate_file(df, opt_crit=MacroBalancedF1, **kwargs)
     assert criteria[-1] is MacroBalancedF1
+
+
+def test_known_only_calibration_ignores_unknown_label_rows():
+    metrics = importlib.import_module("mini_metrics.metrics")
+    rng = np.random.default_rng(7)
+    n = 400
+    known = rng.uniform(size=n) < 0.7
+    labels = np.where(known, rng.choice(["a", "b", "c"], n), "x")
+    preds = np.where(rng.uniform(size=n) < 0.6, labels, rng.choice(["a", "b", "c"], n))
+    preds = np.where(known, preds, rng.choice(["a", "b", "c"], n))
+    base = rng.uniform(size=n)
+
+    def calibrated(unknown_confidence):
+        columns = dict(_make_df(labels, preds, np.where(known, base, unknown_confidence)).to_pandas())
+        df = MetricDF({**columns, "known_label": known})
+        result = metrics.evaluate_file(
+            df, optimal=True, known_only=True, seed=3, pattern=r"^optimal_confidence_threshold$", verbose=0
+        )
+        return result["optimal_confidence_threshold"]
+
+    # Known-only reporting must calibrate on the same known-label population it evaluates.
+    assert calibrated(0.99) == calibrated(0.01)
