@@ -263,3 +263,9 @@ def test_label_filter_selects_whole_instances_by_leaf_label():
     selected = filter_df(df, ["x"], verbose=0)
     assert selected.instance_id.tolist() == [0, 0]
     assert selected.level.tolist() == [0, 1]
+
+
+def test_average_prediction_level_counts_each_instance_once():
+    # Instance 0 is accepted at every level (prediction level 0); instance 1 only at level 2.
+    df = frame(ids=(0, 0, 0, 1, 1, 1), levels=(0, 1, 2, 0, 1, 2), confidence=(1, 1, 1, 0, 0, 1))
+    assert AveragePredictionLevel()(df) == (0 + 2) / 2

@@ -335,7 +335,7 @@ class MicroVocabularyCoverage(VocabularyCoverage, MicroMetric):
 
 # Average Prediction Level
 class AveragePredictionLevel(Metric):
-    """Average Prediction Level."""
+    """Mean prediction level over instances with at least one accepted prediction."""
 
     name: str = "average_prediction_level"
     columns = ("prediction_level", "prediction_made")
@@ -346,7 +346,9 @@ class AveragePredictionLevel(Metric):
         pm = df.prediction_made
         assert pl is not None
         assert pm is not None
-        pl = pl[pm]
+        # One value per instance: its prediction level is shared by all of its rows.
+        _, first = np.unique(df.instance_id[pm], return_index=True)
+        pl = pl[pm][first]
         n = len(pl)
         if n == 0:
             return float("nan"), n
