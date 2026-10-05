@@ -65,7 +65,8 @@ class Accuracy(AveragedMetric):
             corr = corr[corr != 0]
         n = len(corr)
         if n == 0:
-            return 1.0, n
+            # Selective accuracy/precision without accepted predictions is undefined.
+            return float("nan"), n
         return np.mean(corr == 1).item(), n
 
 
@@ -194,6 +195,9 @@ class F1(AveragedMetric):
         for cls in dict.fromkeys(chain(Rs.keys(), Ps.keys())):
             P, P_supp = Ps.get(cls, E)
             R, R_supp = Rs.get(cls, E)
+            # Combine an unsupported precision/recall as the historical vacuous 1.0. With
+            # correct == (prediction == label) it never affects a supported class's F1.
+            P, R = (P if P_supp else 1.0), (R if R_supp else 1.0)
             w = apply_macro_weight(R_supp + P_supp, macro)
 
             clss.append(cls)
@@ -205,6 +209,8 @@ class F1(AveragedMetric):
                 f1 = 0.0
             else:
                 f1 = 2.0 / (1.0 / P + 1.0 / R)
+            if w == 0:
+                f1 = float("nan")  # Neither true nor accepted predicted support: undefined.
 
             f1s.append(f1)
             p_vals.append(P)

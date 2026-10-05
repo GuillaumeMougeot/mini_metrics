@@ -38,6 +38,9 @@ def mean(
 
     s = n = 0
     for x, w in zip(_X, _W):
+        # A zero-weight term contributes nothing, including an undefined value.
+        if w == 0:
+            continue
         if skip_nonfinite and not (isfinite(x) and isfinite(w)):
             continue
         s += x * w

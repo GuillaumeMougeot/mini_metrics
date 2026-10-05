@@ -82,3 +82,39 @@ def test_precision_options(tmp_path, examples_dir):
             len(v.split(".")[1]) > 6 for row in reader for k, v in row.items() if k != "level" and "." in v
         )
         assert has_long_decimal
+
+
+def test_per_class_values_without_support_are_undefined_not_one():
+    import math
+
+    import pandas as pd
+
+    from mini_metrics.data import MetricDF
+    from mini_metrics.metrics import evaluate_file
+
+    # A: one correct and one rejected "D" prediction; B: never accepted; C: correct; D: predicted only.
+    df = MetricDF(
+        pd.DataFrame(
+            {
+                "instance_id": range(4),
+                "filename": list("wxyz"),
+                "level": 0,
+                "label": ["A", "A", "B", "C"],
+                "prediction": ["A", "D", "B", "C"],
+                "confidence": [0.9, 0.1, 0.1, 0.9],
+                "threshold": 0.5,
+            }
+        )
+    )
+    kwargs = dict(
+        threshold=[0.5], simple=True, hierarchical=False, verbose=0, pattern="^(precision|recall|f1)$"
+    )
+    per_class = evaluate_file(df, per_class=True, **kwargs)
+    precision, f1 = per_class["precision"][0], per_class["f1"][0]
+    assert math.isnan(precision["B"][0]) and precision["B"][1] == 0
+    assert math.isnan(precision["D"][0]) and math.isnan(f1["D"][0]) and f1["D"][1] == 0
+    assert f1["B"] == (0.0, 1.0)  # Supported but never accepted: no true positives.
+    aggregate = evaluate_file(df, **kwargs)
+    assert aggregate["precision"][0] == 1.0  # A and C only.
+    assert aggregate["recall"][0] == (0.5 + 0.0 + 1.0) / 3
+    assert aggregate["f1"][0] == (2 / 3 + 0.0 + 1.0) / 3
