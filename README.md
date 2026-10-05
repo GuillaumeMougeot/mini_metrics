@@ -42,7 +42,7 @@ uv run --no-sync mm_metrics -f path/to/results.csv -o path/to/output_base
 | `-a` | `--all` | `flag` | Print full metric results and save them to a JSON file (in addition to the CSV table). |
 | `-K` | `--known_only` | `flag` | Compute statistics only for classes known by the model (default: `False`). |
 | | `--label_filter` | `str [str ...]` | List of or path to a file containing labels to subset results by. |
-| | `--subsample` | `int` | Subsample data by taking every N-th row. |
+| | `--subsample` | `int` | Keep a random, label-stratified 1/N of instances (all their levels); reproducible with `--seed`. |
 | | `--per_class` | `flag` | Compute per-class metrics. |
 | | `--seed` | `int` | Seed used for splitting the dataset when using `-O`/`--optimal`. |
 | `-v` | `--verbose` | `int` | Verbosity level: `0` (silent), `1` (info/summary, default), or `2` (debug). |

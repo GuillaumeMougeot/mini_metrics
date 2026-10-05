@@ -311,12 +311,14 @@ def filter_df(df: MetricDF, filter: str | list[str], verbose: int = 1):
         else:
             filter = [filter]
 
+    wanted = set(filter)
+
     def _match(_df: MetricDF):
         def _inner(__df: MetricDF):
-            assert __df.level is not None
-            lvl_mask = __df.level == 0
-            label = __df.label and __df.label[lvl_mask]
-            return False if len(__df) == 0 or label is None else label.item() in filter
+            # Instances are selected by their leaf (level 0) label; those without one are excluded.
+            assert __df.level is not None and __df.label is not None
+            leaf = __df.label[__df.level == 0]
+            return len(leaf) > 0 and leaf[0] in wanted
 
         idx_map = group_indices(_df.instance_id)
         empty = np.empty((0,), dtype=np.int64)

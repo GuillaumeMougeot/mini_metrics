@@ -244,3 +244,22 @@ def test_construction_rejects_missing_and_out_of_range_inputs(column, value, mes
     data[column] = [data[column][0], value]
     with pytest.raises(ValueError, match=message):
         MetricDF(data)
+
+
+def test_label_filter_selects_whole_instances_by_leaf_label():
+    from mini_metrics.helpers import filter_df
+
+    df = MetricDF(
+        {
+            "instance_id": [0, 0, 1, 1, 2],
+            "filename": ["a", "a", "b", "b", "c"],
+            "level": [0, 1, 0, 1, 1],
+            "label": ["x", "g", "y", "g", "g"],
+            "prediction": ["x", "g", "x", "g", "g"],
+            "confidence": [0.9] * 5,
+            "threshold": [0.0] * 5,
+        }
+    )
+    selected = filter_df(df, ["x"], verbose=0)
+    assert selected.instance_id.tolist() == [0, 0]
+    assert selected.level.tolist() == [0, 1]
