@@ -118,3 +118,43 @@ def test_per_class_values_without_support_are_undefined_not_one():
     assert aggregate["precision"][0] == 1.0  # A and C only.
     assert aggregate["recall"][0] == (0.5 + 0.0 + 1.0) / 3
     assert aggregate["f1"][0] == (2 / 3 + 0.0 + 1.0) / 3
+
+
+def test_per_class_table_keeps_each_level_and_predicted_only_classes():
+    import math
+
+    import pandas as pd
+
+    from mini_metrics.data import MetricDF
+    from mini_metrics.helpers import df_from_dict
+    from mini_metrics.metrics import evaluate_file
+
+    # The same class names occur at both levels; "z" is only ever predicted.
+    rows = []
+    for level in (0, 1):
+        for i, (label, prediction) in enumerate([("x", "x"), ("y", "z"), ("y", "y")]):
+            rows.append(
+                dict(
+                    instance_id=i,
+                    filename=f"f{i}",
+                    level=level,
+                    label=label,
+                    prediction=prediction,
+                    confidence=0.9,
+                    threshold=0.0,
+                )
+            )
+    df = MetricDF(pd.DataFrame(rows))
+    metrics = evaluate_file(
+        df,
+        threshold=[0.0, 0.0],
+        per_class=True,
+        simple=True,
+        hierarchical=False,
+        verbose=0,
+        pattern="^(precision|recall)$",
+    )
+    table = df_from_dict(metrics, ["precision", "recall"], per_class=True).set_index(["level", "class"])
+    assert sorted(table.index) == [(lvl, cls) for lvl in (0, 1) for cls in ("x", "y", "z")]
+    assert table.loc[(1, "y"), "recall"] == 0.5
+    assert table.loc[(1, "z"), "precision"] == 0.0 and math.isnan(table.loc[(1, "z"), "recall"])

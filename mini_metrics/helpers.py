@@ -136,32 +136,28 @@ def format_table(
 def unnest_class(
     metric_df_data: dict[str, list[int] | list[dict[str, tuple[float, float]]]],
 ) -> dict[str, list[float | int | str]]:
-    # Invert nested class dictionaries
-    scaffold: dict[str, dict[str, float | int | str]] = dict()
-    for metric, level_values in metric_df_data.items():
-        if metric == "level":
-            continue
-        for level, class_values in enumerate(level_values):
+    # Invert nested class dictionaries; a class name can recur at several levels.
+    levels = metric_df_data.get("level") or []
+    scaffold: dict[tuple[Any, str], dict[str, float | int | str]] = dict()
+    metrics = [metric for metric in metric_df_data if metric != "level"]
+    for metric in metrics:
+        for position, class_values in enumerate(metric_df_data[metric]):
             if not isinstance(class_values, dict):
                 raise RuntimeError(
                     f"Expected {metric} values to be a dictionary but found {type(class_values).__class__.__name__}"
                 )
+            level = levels[position] if position < len(levels) else position
             for cls, (value, count) in class_values.items():
-                if cls not in scaffold:
-                    scaffold[cls] = dict()
-                scaffold[cls][metric] = value
-                scaffold[cls]["count"] = int(max(scaffold[cls].get("count", 0), count))
-                scaffold[cls]["level"] = level
-    # Remove classes which don't have all metrics
-    max_metrics = max(map(len, scaffold.values()))
-    scaffold = {k: v for k, v in scaffold.items() if len(v) == max_metrics}
-    # Unfold classes
-    out: dict[str, list[float | int | str]] = dict()
-    out["class"] = []
-    for cls, metrics in scaffold.items():
+                row = scaffold.setdefault((level, cls), {"level": level})
+                row[metric] = value
+                row["count"] = int(max(row.get("count", 0), count))
+    # Unfold classes; metrics a class lacks (e.g. recall of a predicted-only class) are NaN.
+    out: dict[str, list[float | int | str]] = {"class": [], "level": [], "count": []}
+    out |= {metric: [] for metric in metrics}
+    for (_, cls), row in sorted(scaffold.items(), key=lambda item: item[0][0]):
         out["class"].append(cls)
-        for k, v in metrics.items():
-            out.setdefault(k, []).append(v)
+        for key in out.keys() - {"class"}:
+            out[key].append(row.get(key, float("nan")))
     return out
 
 
