@@ -125,7 +125,9 @@ class AveragedMetric(Metric[float]):
         each group/class to a tuple of (metric_value, weight).
         """
         grps = list(
-            dict.fromkeys(np.concatenate([np.asarray(getattr(df, k)) for k in set((self.group, self.by))]))
+            dict.fromkeys(
+                np.concatenate([np.asarray(getattr(df, k)) for k in dict.fromkeys((self.group, self.by))])
+            )
         )
         if len(grps) <= 1:
             v, w = self.compute(df, *args, **kwargs)

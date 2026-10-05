@@ -190,7 +190,8 @@ class F1(AveragedMetric):
         p_ws: list[float] = []
         r_ws: list[float] = []
 
-        for cls in set(chain(Rs.keys(), Ps.keys())):
+        # Ordered union: set iteration would make summation order depend on hash seeds.
+        for cls in dict.fromkeys(chain(Rs.keys(), Ps.keys())):
             P, P_supp = Ps.get(cls, E)
             R, R_supp = Rs.get(cls, E)
             w = apply_macro_weight(R_supp + P_supp, macro)
